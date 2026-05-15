@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { Star, CheckCircle, Shield, ArrowRight, DollarSign, Search } from "lucide-react";
 import Navbar from "@/components/layout/Navbar";
-import { MOCK_ASSESSORS, CERT_PRICING } from "@/lib/constants";
+import { MOCK_ASSESSORS } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
 export default function AssessorPage() {
@@ -12,12 +12,12 @@ export default function AssessorPage() {
   const assessor = MOCK_ASSESSORS.find(a => a.id === selected);
 
   return (
-    <div className="min-h-screen bg-surface">
+    <div className="app-shell">
       <Navbar />
       <main className="max-w-5xl mx-auto px-6 py-8">
         <div className="mb-6">
-          <h1 className="font-display font-bold text-2xl text-gray-900">Assessor Marketplace</h1>
-          <p className="text-gray-500 text-sm mt-0.5">Browse independent certified assessors. WEC retains 15% — assessors receive 85% within 5 business days.</p>
+          <h1 className="font-display font-bold text-2xl text-[color:var(--foreground)]">Assessor Marketplace</h1>
+          <p className="text-[color:var(--muted)] text-sm mt-0.5">Browse independent certified assessors. WEC retains 15% and assessors receive 85% within 5 business days.</p>
         </div>
 
         {/* Filter */}
@@ -26,10 +26,10 @@ export default function AssessorPage() {
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input className="input-field pl-9 py-2.5 text-sm" placeholder="Search assessors..." />
           </div>
-          <div className="flex rounded-xl border border-gray-200 overflow-hidden">
+          <div className="flex overflow-hidden rounded-lg border border-[color:var(--border)]">
             {(["all","self","digital"] as const).map(f => (
               <button key={f} onClick={() => setCertFilter(f)}
-                className={cn("px-4 py-2 text-sm font-medium transition-all", certFilter===f?"bg-brand-indigo text-white":"bg-white text-gray-600 hover:bg-gray-50")}>
+                className={cn("px-4 py-2 text-sm font-medium transition-all", certFilter===f?"bg-[image:var(--button-primary)] text-white":"bg-[color:var(--card)] text-[color:var(--muted)] hover:bg-[color:var(--card-muted)]")}>
                 {f==="all"?"All":f==="self"?"Self-Cert":"Digital Cert"}
               </button>
             ))}
@@ -41,7 +41,7 @@ export default function AssessorPage() {
             <div key={a.id} className={cn("card-hover transition-all", selected === a.id && "ring-2 ring-brand-indigo")}>
               {/* Header */}
               <div className="flex items-start gap-3 mb-3">
-                <div className="w-12 h-12 bg-brand-indigo/10 rounded-xl flex items-center justify-center shrink-0 text-brand-indigo font-bold text-lg">
+                <div className="w-12 h-12 bg-[color:var(--card-muted)] rounded-lg flex items-center justify-center shrink-0 text-[color:var(--brand-plum)] font-bold text-lg">
                   {a.name.charAt(0)}
                 </div>
                 <div className="flex-1 min-w-0">
@@ -65,7 +65,7 @@ export default function AssessorPage() {
               <p className="text-xs text-gray-500 leading-relaxed mb-4">{a.bio}</p>
 
               {/* Fees */}
-              <div className="bg-gray-50 rounded-xl p-3 mb-4 space-y-1.5">
+              <div className="bg-[color:var(--card-muted)] rounded-lg p-3 mb-4 space-y-1.5">
                 <p className="text-xs font-bold text-gray-600 mb-2">Fee Structure</p>
                 {[
                   { label: "Self-Certification",    fee: a.fee_self },
@@ -80,8 +80,8 @@ export default function AssessorPage() {
               </div>
 
               <button onClick={() => setSelected(selected === a.id ? null : a.id)}
-                className={cn("w-full text-sm font-semibold py-2.5 rounded-xl transition-all",
-                  selected===a.id?"bg-brand-indigo text-white":"bg-gray-100 text-gray-700 hover:bg-gray-200")}>
+                className={cn("w-full rounded-lg py-2.5 text-sm font-semibold transition-all",
+                  selected===a.id?"bg-[image:var(--button-primary)] text-white":"bg-[color:var(--card-muted)] text-[color:var(--muted-strong)] hover:bg-[color:var(--card)]")}>
                 {selected===a.id?"Selected ✓":"Select Assessor"}
               </button>
             </div>
@@ -90,7 +90,7 @@ export default function AssessorPage() {
 
         {/* Selected assessor CTA */}
         {assessor && (
-          <div className="card border-brand-indigo border-2 bg-brand-indigo/5">
+          <div className="card border-2 border-[color:var(--border-strong)] bg-[color:var(--card-muted)]">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <CheckCircle size={20} className="text-brand-indigo" />

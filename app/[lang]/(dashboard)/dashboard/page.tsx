@@ -1,4 +1,5 @@
 import { ConciergeClient } from "@/components/ConciergeClient";
+import AuthGate from "@/components/auth/AuthGate";
 import Navbar from "@/components/layout/Navbar";
 import { type Language } from "@/lib/i18n";
 
@@ -15,18 +16,20 @@ export default async function DashboardPage({
 
   if (embed) {
     return (
-      <div className="flex min-h-full flex-1 flex-col bg-gradient-to-br from-[#f4faff] via-[#e8f3ff] to-[#f6fbff] p-4">
+      <div className="app-shell flex min-h-full flex-1 flex-col p-4">
         <ConciergeClient embed={embed} language={lang as Language} />
       </div>
     );
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-[#fafcfe] bg-gradient-to-br from-cyan-50/40 via-white to-blue-50/30">
+    <AuthGate allowed={["seller", "admin"]}>
+    <div className="app-shell flex min-h-screen flex-col">
       <Navbar language={lang as Language} />
       <div className="mx-auto w-full max-w-7xl flex-1 flex-col p-4 sm:p-6 lg:p-10">
         <ConciergeClient embed={embed} language={lang as Language} />
       </div>
     </div>
+    </AuthGate>
   );
 }

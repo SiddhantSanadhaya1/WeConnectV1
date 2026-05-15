@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
-import { AlertTriangle, Search, Eye, Ban, FileSearch, Clock, TrendingUp, Shield } from "lucide-react";
+import { AlertTriangle, Search, Eye, Ban, FileSearch, Clock, TrendingUp, Shield, type LucideIcon } from "lucide-react";
+import AuthGate from "@/components/auth/AuthGate";
 import Navbar from "@/components/layout/Navbar";
 import RiskBadge from "@/components/ui/RiskBadge";
 import { cn } from "@/lib/utils";
@@ -26,7 +27,7 @@ const TYPE_LABELS: Record<FraudAlert["type"], string> = {
   rapid_changes: "Rapid Profile Changes",
 };
 
-const TYPE_ICONS: Record<FraudAlert["type"], React.ComponentType<any>> = {
+const TYPE_ICONS: Record<FraudAlert["type"], LucideIcon> = {
   duplicate: Search, doc_forgery: FileSearch, ownership_mismatch: AlertTriangle, rapid_changes: TrendingUp,
 };
 
@@ -43,13 +44,14 @@ export default function AdminFraudPage() {
   }
 
   return (
-    <div className="min-h-screen bg-surface">
+    <AuthGate allowed={["admin"]}>
+    <div className="app-shell">
       <Navbar />
       <main className="max-w-7xl mx-auto px-6 py-8">
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col justify-between gap-4 mb-6 sm:flex-row sm:items-center">
           <div>
-            <h1 className="font-display font-bold text-2xl text-gray-900">Fraud Monitoring</h1>
-            <p className="text-gray-500 text-sm mt-0.5">ML-powered fraud detection and investigation workflow</p>
+            <h1 className="font-display font-bold text-2xl text-[color:var(--foreground)]">Fraud Monitoring</h1>
+            <p className="text-[color:var(--muted)] text-sm mt-0.5">ML-powered fraud detection and investigation workflow</p>
           </div>
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-2.5">
@@ -60,7 +62,7 @@ export default function AdminFraudPage() {
         </div>
 
         {/* Stats row */}
-        <div className="grid grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-1 gap-4 mb-6 sm:grid-cols-2 lg:grid-cols-4">
           {[
             { label: "Total Alerts (30d)", value: "24", icon: AlertTriangle, color: "text-red-500", bg: "bg-red-50" },
             { label: "Duplicates Detected", value: "8",  icon: Search,       color: "text-orange-500", bg: "bg-orange-50" },
@@ -79,9 +81,9 @@ export default function AdminFraudPage() {
           ))}
         </div>
 
-        <div className="grid grid-cols-12 gap-5">
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-12">
           {/* Alerts list */}
-          <div className="col-span-5 space-y-3">
+          <div className="space-y-3 lg:col-span-5">
             {alerts.map(alert => {
               const Icon = TYPE_ICONS[alert.type];
               return (
@@ -119,7 +121,7 @@ export default function AdminFraudPage() {
           </div>
 
           {/* Detail */}
-          <div className="col-span-7">
+          <div className="lg:col-span-7">
             {item ? (
               <div className="card space-y-5 sticky top-24">
                 <div className="flex items-start justify-between">
@@ -175,5 +177,6 @@ export default function AdminFraudPage() {
         </div>
       </main>
     </div>
+    </AuthGate>
   );
 }

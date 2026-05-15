@@ -1,5 +1,6 @@
 "use client";
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
+import AuthGate from "@/components/auth/AuthGate";
 import Navbar from "@/components/layout/Navbar";
 
 const FUNNEL = [
@@ -36,16 +37,17 @@ const KPI = [
 
 export default function AdminAnalyticsPage() {
   return (
-    <div className="min-h-screen bg-surface">
+    <AuthGate allowed={["admin"]}>
+    <div className="app-shell">
       <Navbar />
       <main className="max-w-7xl mx-auto px-6 py-8">
         <div className="mb-6">
-          <h1 className="font-display font-bold text-2xl text-gray-900">Platform Analytics</h1>
-          <p className="text-gray-500 text-sm mt-0.5">Certification funnel, KPIs, and conversion metrics</p>
+          <h1 className="font-display font-bold text-2xl text-[color:var(--foreground)]">Platform Analytics</h1>
+          <p className="text-[color:var(--muted)] text-sm mt-0.5">Certification funnel, KPIs, and conversion metrics</p>
         </div>
 
         {/* KPIs */}
-        <div className="grid grid-cols-6 gap-4 mb-8">
+        <div className="grid grid-cols-1 gap-4 mb-8 sm:grid-cols-2 lg:grid-cols-6">
           {KPI.map(k => (
             <div key={k.label} className="card p-4 text-center">
               <p className="font-display font-bold text-2xl text-gray-900">{k.value}</p>
@@ -55,9 +57,9 @@ export default function AdminAnalyticsPage() {
           ))}
         </div>
 
-        <div className="grid grid-cols-12 gap-5 mb-5">
+        <div className="grid grid-cols-1 gap-5 mb-5 lg:grid-cols-12">
           {/* Conversion Funnel */}
-          <div className="col-span-5 card">
+          <div className="card lg:col-span-5">
             <h3 className="section-title mb-1">Certification Funnel</h3>
             <p className="text-xs text-gray-400 mb-5">Registration → Verification → Certification</p>
             <div className="space-y-3">
@@ -79,7 +81,7 @@ export default function AdminAnalyticsPage() {
           </div>
 
           {/* Monthly trend */}
-          <div className="col-span-7 card">
+          <div className="card lg:col-span-7">
             <h3 className="section-title mb-1">Monthly Activity</h3>
             <p className="text-xs text-gray-400 mb-5">Registrations vs Certifications over 6 months</p>
             <ResponsiveContainer width="100%" height={220}>
@@ -95,9 +97,9 @@ export default function AdminAnalyticsPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-12 gap-5">
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-12">
           {/* Cert distribution */}
-          <div className="col-span-4 card">
+          <div className="card lg:col-span-4">
             <h3 className="section-title mb-5">Certification Distribution</h3>
             <ResponsiveContainer width="100%" height={180}>
               <PieChart>
@@ -121,7 +123,7 @@ export default function AdminAnalyticsPage() {
           </div>
 
           {/* Certifications bar */}
-          <div className="col-span-8 card">
+          <div className="card lg:col-span-8">
             <h3 className="section-title mb-1">Certifications by Month</h3>
             <p className="text-xs text-gray-400 mb-5">Self-cert vs Digital-cert breakdown</p>
             <ResponsiveContainer width="100%" height={200}>
@@ -137,5 +139,6 @@ export default function AdminAnalyticsPage() {
         </div>
       </main>
     </div>
+    </AuthGate>
   );
 }

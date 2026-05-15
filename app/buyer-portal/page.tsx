@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Search, Filter, Globe, CheckCircle, Shield, Link2, Download, X, Sparkles } from "lucide-react";
+import { Search, Filter, Globe, CheckCircle, Shield, Link2, Download, X, Sparkles, MessageCircle } from "lucide-react";
 import Navbar from "@/components/layout/Navbar";
+import AuthGate from "@/components/auth/AuthGate";
 import { NAICS_CODES } from "@/lib/constants";
 import { cn, getCertTypeLabel } from "@/lib/utils";
 import { trustLevelLabel, type RiskLevel } from "@/lib/domains/contracts";
@@ -78,6 +79,9 @@ export default function BuyerPortalPage() {
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState<"verify" | "rfp" | "audit" | null>(null);
   const [actionMessage, setActionMessage] = useState<string>("");
+  const [requestedSupplierId] = useState(() =>
+    typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("supplierId"),
+  );
 
   const set = (key: keyof Filters, val: unknown) => setFilters((f) => ({ ...f, [key]: val }));
 
@@ -103,7 +107,8 @@ export default function BuyerPortalPage() {
     void load();
   }, [filters]);
 
-  const supplier = useMemo(() => rows.find((s) => s.supplier.id === selected) ?? null, [rows, selected]);
+  const selectedId = selected ?? requestedSupplierId;
+  const supplier = useMemo(() => rows.find((s) => s.supplier.id === selectedId) ?? null, [rows, selectedId]);
   const activeFilterCount = Object.entries(filters).filter(([, v]) => v !== "" && v !== null).length;
   const naicsLabelByCode = useMemo(
     () =>
@@ -212,7 +217,9 @@ export default function BuyerPortalPage() {
   };
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-50">
+    <AuthGate allowed={["buyer", "seller"]}>
+      {(session) => (
+    <div className="app-shell">
       <Navbar />
       <main className="mx-auto max-w-7xl px-4 sm:px-6 py-6 sm:py-8">
         <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -220,17 +227,26 @@ export default function BuyerPortalPage() {
             <h1 className="font-display text-xl sm:text-2xl font-bold text-zinc-50">Buyer Portal</h1>
             <p className="mt-0.5 text-sm text-zinc-400">Certification-prioritized supplier discovery with AI match scoring</p>
           </div>
-          <button className="inline-flex items-center justify-center gap-2 rounded-md border border-zinc-800 px-4 py-2 text-sm font-medium transition-colors hover:bg-zinc-800 hover:text-zinc-50 w-full sm:w-auto">
+          <button className="btn-outline gap-2 py-2 text-sm w-full sm:w-auto">
             <Download size={14} />Export CSV
           </button>
         </div>
 
-        <div className="mb-4 rounded-xl border border-cyan-500/25 bg-cyan-500/10 p-3 text-xs text-cyan-100">
+        <div className="mb-4 rounded-lg border border-[color:var(--border)] bg-[color:var(--card-muted)] p-3 text-xs text-[color:var(--muted-strong)]">
           Ranking policy: <strong>Digital Certified</strong> → <strong>Self-Certified</strong> → <strong>Self-Declared</strong>
         </div>
 
+        {session.role === "seller" ? (
+          <div className="mb-4 rounded-lg border border-[color:var(--border)] bg-[color:var(--card-muted)] p-4 text-sm text-[color:var(--muted-strong)]">
+            <p className="font-semibold">Seller profile view</p>
+            <p className="mt-1 text-xs text-emerald-100/80">
+              {session.companyName ?? "Your company"} is visible in this buyer portal. Select your profile to review the buyer-facing details.
+            </p>
+          </div>
+        ) : null}
+
         {recommendations.length > 0 && (
-          <section className="mb-5 rounded-xl border border-zinc-800 bg-zinc-900 p-4">
+          <section className="enterprise-panel mb-5 rounded-lg p-4">
             <p className="mb-2 flex items-center gap-2 text-sm font-semibold text-zinc-200">
               <Sparkles size={14} className="text-cyan-400" /> Top recommended suppliers based on your requirement
             </p>
@@ -239,7 +255,7 @@ export default function BuyerPortalPage() {
                 <button
                   key={row.supplier.id}
                   onClick={() => setSelected(row.supplier.id)}
-                  className="rounded-lg border border-zinc-800 bg-zinc-950 p-3 text-left hover:border-cyan-500/50"
+                  className="rounded-lg border border-[color:var(--border)] bg-[color:var(--card)] p-3 text-left transition-colors hover:border-[color:var(--border-strong)]"
                 >
                   <p className="text-sm font-semibold text-zinc-100">{row.supplier.business_name}</p>
                   <p className="text-xs text-zinc-500">Match Score: {row.match.matchScore}%</p>
@@ -261,10 +277,7 @@ export default function BuyerPortalPage() {
           </div>
           <button
             onClick={() => setShowFilters(!showFilters)}
-            className={cn(
-              "relative inline-flex items-center justify-center gap-2 rounded-md border border-zinc-800 px-4 py-2 text-sm font-medium transition-colors hover:bg-zinc-800 hover:text-zinc-50",
-              showFilters && "border-zinc-700 bg-zinc-800 text-zinc-50",
-            )}
+            className={cn("btn-outline relative gap-2 py-2 text-sm", showFilters && "border-[color:var(--border-strong)] bg-[color:var(--card-muted)]")}
           >
             <Filter size={14} />Filters
             {activeFilterCount > 0 && (
@@ -276,7 +289,7 @@ export default function BuyerPortalPage() {
         </div>
 
         {showFilters && (
-          <div className="mb-5 rounded-xl border border-zinc-800 bg-zinc-900 p-6 text-zinc-50 shadow">
+          <div className="enterprise-panel mb-5 rounded-lg p-6 shadow">
             <div className="mb-4 flex items-center justify-between">
               <p className="font-semibold text-zinc-50">Filters</p>
               <button
@@ -337,7 +350,7 @@ export default function BuyerPortalPage() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
           <div className={cn("space-y-3", supplier ? "lg:col-span-7" : "lg:col-span-12 grid grid-cols-1 gap-4 space-y-0 sm:grid-cols-2 lg:grid-cols-3")}>
             {rows.map((row) => (
-              <div key={row.supplier.id} onClick={() => setSelected(row.supplier.id === selected ? null : row.supplier.id)} className={cn("cursor-pointer rounded-xl border border-zinc-800 bg-zinc-900 p-6 text-zinc-50 shadow transition-all hover:bg-zinc-800/50 hover:shadow-md", selected === row.supplier.id && "ring-2 ring-zinc-500")}>
+              <div key={row.supplier.id} onClick={() => setSelected(row.supplier.id === selectedId ? null : row.supplier.id)} className={cn("enterprise-panel cursor-pointer rounded-lg p-6 shadow transition-all hover:shadow-md", selectedId === row.supplier.id && "ring-2 ring-[color:var(--border-strong)]")}>
                 <div className="mb-2 flex items-start justify-between">
                   <div>
                     <h3 className="text-sm font-bold text-zinc-100">{row.supplier.business_name}</h3>
@@ -391,7 +404,7 @@ export default function BuyerPortalPage() {
 
           {supplier && (
             <div className="lg:col-span-5">
-              <div className="sticky top-24 space-y-4 rounded-xl border border-zinc-800 bg-zinc-900 p-6 text-zinc-50 shadow">
+              <div className="enterprise-panel sticky top-24 space-y-4 rounded-lg p-6 shadow">
                 <div className="flex items-start justify-between">
                   <div>
                     <h2 className="font-bold text-zinc-100">{supplier.supplier.business_name}</h2>
@@ -473,6 +486,7 @@ export default function BuyerPortalPage() {
                     {actionLoading === "rfp" ? "Sending..." : "Invite to RFP"}
                   </button>
                 </div>
+                <div className="flex flex-col sm:flex-row gap-2">
                 <button
                   type="button"
                   onClick={() => void runAuditReport()}
@@ -482,6 +496,16 @@ export default function BuyerPortalPage() {
                   <Shield size={13} />
                   {actionLoading === "audit" ? "Generating report..." : "Request Audit Report"}
                 </button>
+                  <button
+                    type="button"
+                    onClick={() => {}}
+                    disabled={actionLoading !== null}
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-zinc-700 px-4 py-2 text-sm font-medium transition-colors hover:bg-zinc-800 hover:text-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                  <MessageCircle size={18} />
+                  Start Chat
+                </button>
+                </div>
                 {actionMessage ? (
                   <p className="rounded-md border border-cyan-500/20 bg-cyan-500/10 px-3 py-2 text-xs text-cyan-100">
                     {actionMessage}
@@ -493,5 +517,7 @@ export default function BuyerPortalPage() {
         </div>
       </main>
     </div>
+      )}
+    </AuthGate>
   );
 }

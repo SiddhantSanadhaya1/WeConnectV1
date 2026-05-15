@@ -1,5 +1,4 @@
-import Link from "next/link";
-import { BookOpen, FileText, Settings, Cpu, Network, Users, ArrowRight, ExternalLink } from "lucide-react";
+import { BookOpen, FileText, Settings, Cpu, Network, Users, ExternalLink } from "lucide-react";
 import Navbar from "@/components/layout/Navbar";
 
 const DOCS = [
@@ -24,14 +23,14 @@ const API_ENDPOINTS = [
 
 export default function DocumentationPage() {
   return (
-    <div className="min-h-screen bg-surface">
+    <div className="app-shell">
       <Navbar />
       <main className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         <div className="flex items-center gap-3 mb-8">
           <BookOpen size={24} className="text-brand-indigo" />
           <div>
-            <h1 className="font-display font-bold text-xl sm:text-2xl text-gray-900">Documentation</h1>
-            <p className="text-gray-500 text-sm">Platform docs, technical specs, and API reference</p>
+            <h1 className="font-display font-bold text-xl sm:text-2xl text-[color:var(--foreground)]">Documentation</h1>
+            <p className="text-[color:var(--muted)] text-sm">Platform docs, technical specs, and API reference</p>
           </div>
         </div>
 
@@ -40,7 +39,7 @@ export default function DocumentationPage() {
           {DOCS.map(d => (
             <div key={d.title} className="card-hover group">
               <div className="flex items-start gap-4">
-                <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${d.color}`}><d.icon size={20}/></div>
+                <div className={`w-11 h-11 rounded-lg flex items-center justify-center shrink-0 ${d.color}`}><d.icon size={20}/></div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2 mb-1">
                     <h3 className="font-bold text-gray-900 text-sm group-hover:text-brand-indigo transition-colors">{d.title}</h3>
@@ -91,7 +90,7 @@ export default function DocumentationPage() {
               { title: "GDPR & CCPA",   timeline: "Active",       desc: "Data privacy, right to deletion, and data portability." },
               { title: "ISO 27001",     timeline: "Months 13–18", desc: "Information security management system certification." },
             ].map(c => (
-              <div key={c.title} className="bg-gray-50 rounded-xl p-4">
+              <div key={c.title} className="rounded-lg bg-[color:var(--card-muted)] p-4">
                 <h4 className="font-bold text-gray-900 text-sm mb-1">{c.title}</h4>
                 <span className="badge bg-blue-100 text-brand-blue mb-2">{c.timeline}</span>
                 <p className="text-xs text-gray-500 leading-relaxed">{c.desc}</p>

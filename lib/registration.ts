@@ -29,6 +29,8 @@ export type RegistrationDraft = {
   cert_type: string;
   assessor: string;
   company_type: string;
+  email: string;
+  phone: string;
 };
 
 export type DiscoverPrefillResponse = {
@@ -73,6 +75,8 @@ export function emptyRegistrationDraft(): RegistrationDraft {
     cert_type: "",
     assessor: "",
     company_type: "",
+    email: "",
+    phone: "",
   };
 }
 
@@ -129,6 +133,8 @@ export function normalizeRegistrationDraft(input: unknown): RegistrationDraft {
     cert_type: toCleanString(candidate.cert_type),
     assessor: toCleanString(candidate.assessor),
     company_type: toCleanString(candidate.company_type),
+    email: toCleanString(candidate.email),
+    phone: toCleanString(candidate.phone),
   };
 }
 

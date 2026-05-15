@@ -147,8 +147,8 @@ export function AdminDashboard() {
   return (
     <div className="grid gap-6 lg:grid-cols-2">
       <div className="space-y-4">
-        <section className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
-          <h2 className="text-sm font-medium text-zinc-300">Sessions (in-memory)</h2>
+        <section className="enterprise-panel rounded-lg p-4">
+          <h2 className="text-sm font-medium text-[color:var(--foreground)]">Sessions (in-memory)</h2>
           <ul className="mt-2 max-h-48 space-y-1 overflow-y-auto text-sm">
             {sessions.map((s) => (
               <li key={s.id}>
@@ -156,7 +156,7 @@ export function AdminDashboard() {
                   type="button"
                   onClick={() => void loadTerminal(s.id)}
                   className={`w-full rounded px-2 py-1 text-left hover:bg-white/5 ${
-                    pickSession === s.id ? "bg-cyan-500/10 text-cyan-200" : "text-zinc-400"
+                    pickSession === s.id ? "bg-[color:var(--card-muted)] text-[color:var(--brand-plum)]" : "text-[color:var(--muted)]"
                   }`}
                 >
                   <span className="font-mono text-xs">{s.id.slice(0, 10)}…</span> · {s.stage}
@@ -165,13 +165,13 @@ export function AdminDashboard() {
               </li>
             ))}
             {sessions.length === 0 && (
-              <li className="text-zinc-600">No active sessions yet. Open the user flow.</li>
+              <li className="text-[color:var(--muted)]">No active sessions yet. Open the user flow.</li>
             )}
           </ul>
         </section>
 
-        <section className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
-          <h2 className="text-sm font-medium text-zinc-300">Certificates</h2>
+        <section className="enterprise-panel rounded-lg p-4">
+          <h2 className="text-sm font-medium text-[color:var(--foreground)]">Certificates</h2>
           <ul className="mt-2 max-h-40 space-y-1 overflow-y-auto text-xs text-zinc-500">
             {certs.map((c) => (
               <li key={c.id} className="flex justify-between gap-2 font-mono">
@@ -187,9 +187,9 @@ export function AdminDashboard() {
           </ul>
         </section>
 
-        <section className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-4">
-          <h2 className="text-sm font-medium text-cyan-200">Demo Health</h2>
-          <div className="mt-2 space-y-1 text-xs text-zinc-400">
+        <section className="enterprise-panel rounded-lg p-4">
+          <h2 className="text-sm font-medium text-[color:var(--foreground)]">Demo Health</h2>
+          <div className="mt-2 space-y-1 text-xs text-[color:var(--muted)]">
             <p>
               Gemini: {health?.ai?.geminiKeyConfigured ? "key configured" : "missing key"} · model{" "}
               {health?.ai?.geminiModel ?? "n/a"}
@@ -202,7 +202,7 @@ export function AdminDashboard() {
             {health?.ai?.guardrailWarning ? (
               <p className="text-amber-300">Guardrail: {health.ai.guardrailWarning}</p>
             ) : null}
-            <p className={health?.ai?.degraded ? "text-amber-300" : "text-zinc-400"}>
+            <p className={health?.ai?.degraded ? "text-amber-300" : "text-[color:var(--muted)]"}>
               Gemini status: {health?.ai?.degraded ? "degraded (fallback active)" : "healthy"} · recent fallbacks{" "}
               {health?.ai?.recentFallbackCount ?? 0}
             </p>
@@ -257,22 +257,22 @@ export function AdminDashboard() {
           <button
             type="button"
             onClick={() => void runRevocationTick()}
-            className="mt-3 rounded border border-cyan-500/50 px-3 py-1 text-xs text-cyan-200 hover:bg-cyan-500/10"
+            className="btn-outline mt-3 px-3 py-1 text-xs"
           >
             Run registry watcher tick
           </button>
-          {tickInfo ? <p className="mt-2 text-xs text-zinc-500">{tickInfo}</p> : null}
+          {tickInfo ? <p className="mt-2 text-xs text-[color:var(--muted)]">{tickInfo}</p> : null}
         </section>
 
-        <section className="rounded-xl border border-rose-500/20 bg-rose-500/5 p-4">
-          <h2 className="text-sm font-medium text-rose-200">Simulate registry delta</h2>
-          <p className="mt-1 text-xs text-zinc-500">
+        <section className="enterprise-panel rounded-lg p-4">
+          <h2 className="text-sm font-medium text-[color:var(--foreground)]">Simulate registry delta</h2>
+          <p className="mt-1 text-xs text-[color:var(--muted)]">
             Revokes the soulbound certificate and emits Buyer Portal notification lines on that
             session.
           </p>
           <div className="mt-3 flex gap-2">
             <input
-              className="flex-1 rounded border border-white/10 bg-black/40 px-2 py-1 font-mono text-xs"
+              className="input-field flex-1 px-2 py-1 font-mono text-xs"
               placeholder="certificate id"
               value={revokeId}
               onChange={(e) => setRevokeId(e.target.value)}
