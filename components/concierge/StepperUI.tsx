@@ -1,27 +1,23 @@
 import { CertificationType } from "@/lib/domains/contracts";
-import { Match, RegistrationDraft } from "./types";
-import { emptyRegistrationDraft } from "@/lib/registration";
+import type { CertDisplay } from "@/components/CertificateCard";
+import { Match } from "./types";
+import { BadgeCheck, Building2, Check, CreditCard, FileCheck2, RotateCcw, ShieldCheck } from "lucide-react";
+
+type DisplayCertificate = CertDisplay & { revoked?: boolean };
 
 type StepperUIProps = {
   flowSteps: readonly string[];
   currentFlowStep: number;
   match: Match | null;
   activeCertType: CertificationType;
-  setCertificationType: (v: CertificationType) => void;
-  setMatch: (v: Match | null) => void;
-  setRegistration: (v: any) => void;
-  setStage: (v: string) => void;
-  setNeedsCandidateConfirmation: (v: boolean) => void;
-  setCountryConfirmed: (v: boolean) => void;
-  setPaid: (v: boolean) => void;
+  registrationComplete: boolean;
+  selfVerificationComplete: boolean;
+  visionIdPassed: boolean;
   setManualFlowStep: (v: number | null) => void;
-  compliance: any;
-  trustReport: any;
-  runCompliance: () => void;
-  createTrustReport: () => void;
-  startVerification: () => void;
+  resetRegistration: () => void;
+  confirmRegistration: () => void;
   stage: string;
-  cert: any;
+  cert: DisplayCertificate | null;
 };
 
 export function StepperUI({
@@ -29,191 +25,139 @@ export function StepperUI({
   currentFlowStep,
   match,
   activeCertType,
-  setCertificationType,
-  setMatch,
-  setRegistration,
-  setStage,
-  setNeedsCandidateConfirmation,
-  setCountryConfirmed,
-  setPaid,
+  registrationComplete,
+  selfVerificationComplete,
+  visionIdPassed,
   setManualFlowStep,
-  compliance,
-  trustReport,
-  runCompliance,
-  createTrustReport,
-  startVerification,
+  resetRegistration,
+  confirmRegistration,
   stage,
   cert,
 }: StepperUIProps) {
+  const steps = [
+    {
+      title: flowSteps[0],
+      description: "Enter a business name or URL, review the Google-powered prefill, and confirm.",
+      Icon: Building2,
+      done: registrationComplete,
+      accent: "cyan",
+      actionLabel: match ? "Edit Details" : "Start",
+      onAction: () => {
+        if (match) setManualFlowStep(0);
+      },
+      disabled: !match,
+    },
+    {
+      title: flowSteps[1],
+      description: "Upload supporting documents, scan a valid ID on webcam, then issue the blockchain certificate.",
+      Icon: ShieldCheck,
+      done: selfVerificationComplete,
+      accent: "emerald",
+      actionLabel: registrationComplete ? "Continue" : "Confirm First",
+      onAction: () => {
+        if (registrationComplete) setManualFlowStep(1);
+        else if (match) confirmRegistration();
+      },
+      disabled: !match,
+    },
+    {
+      title: flowSteps[2],
+      description: "Paid 72-hour authenticity review. Rejected digital requests are refunded.",
+      Icon: CreditCard,
+      done: activeCertType === "digital" && Boolean(cert),
+      accent: "blue",
+      actionLabel: cert ? "Open" : "After Certificate",
+      onAction: () => {
+        if (cert) setManualFlowStep(2);
+      },
+      disabled: !cert,
+    },
+  ] as const;
+
+  const accentClasses: Record<string, { active: string; done: string; idle: string; icon: string }> = {
+    cyan: {
+      active: "border-cyan-300 bg-cyan-50 text-cyan-900",
+      done: "border-emerald-200 bg-emerald-50 text-emerald-900",
+      idle: "border-slate-200 bg-white text-slate-500",
+      icon: "bg-cyan-600 text-white",
+    },
+    emerald: {
+      active: "border-emerald-300 bg-emerald-50 text-emerald-900",
+      done: "border-emerald-200 bg-emerald-50 text-emerald-900",
+      idle: "border-slate-200 bg-white text-slate-500",
+      icon: "bg-emerald-600 text-white",
+    },
+    blue: {
+      active: "border-blue-300 bg-blue-50 text-blue-900",
+      done: "border-emerald-200 bg-emerald-50 text-emerald-900",
+      idle: "border-slate-200 bg-white text-slate-500",
+      icon: "bg-blue-600 text-white",
+    },
+  };
+
   return (
-    <section className="rounded-2xl sm:rounded-[32px] border border-white/40 bg-white/60 p-4 sm:p-6 shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] backdrop-blur-xl">
-      <h2 className="text-xl font-bold tracking-tight text-slate-800">Guided Flow</h2>
-      <div className="mt-6 flex flex-col gap-4 lg:flex-row lg:items-start">
-        {/* Registration */}
-        <div className="flex-1 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="mb-3 flex items-start justify-between">
-            <div>
-              <h3 className="text-sm font-bold text-slate-800">Registration</h3>
-              <p className="text-xs text-slate-500">Complete initial onboarding</p>
-            </div>
-            {currentFlowStep > 1 && (
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500 text-white shadow-md shadow-emerald-100">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 111.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                </svg>
-              </div>
-            )}
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            {flowSteps.slice(0, 2).map((step, index) => {
-              const actualIndex = index;
-              return (
-                <button
-                  key={step}
-                  type="button"
-                  onClick={() => {
-                    if (actualIndex === 0) {
-                      setCertificationType("none");
-                      setMatch(null);
-                      setRegistration(emptyRegistrationDraft());
-                    } else if (actualIndex === 1 && match) {
-                      setStage("discovered");
-                      setNeedsCandidateConfirmation(false);
-                      setCountryConfirmed(true);
-                    }
-                  }}
-                  className={`cursor-pointer rounded-full border px-3 py-2 text-[10px] font-bold uppercase tracking-wider transition-all ${
-                    actualIndex < currentFlowStep
-                      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                      : actualIndex === currentFlowStep
-                      ? "border-cyan-400 bg-cyan-500 text-white shadow-md shadow-cyan-100"
-                      : "border-slate-200 bg-slate-50 text-slate-400"
-                  }`}
-                >
-                  {actualIndex + 1}. {step}
-                </button>
-              );
-            })}
-          </div>
+    <section className="rounded-lg border border-white/50 bg-white/70 p-4 shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] backdrop-blur-xl sm:p-5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 className="text-lg font-bold tracking-tight text-slate-900">Seller Registration Workflow</h2>
+          <p className="mt-1 text-xs text-slate-500">
+            {match ? `${match.companyName} · Stage: ${stage}` : "Start with a company name, business name, or URL."}
+          </p>
         </div>
-
-        {/* Arrow */}
-        <div className="hidden lg:flex items-center pt-10 text-slate-300">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M13 5l7 7-7 7M5 12h15" />
-          </svg>
-        </div>
-
-        {/* Verification */}
-        <div className="flex-1 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="mb-3 flex items-center justify-between">
-            <div>
-              <h3 className="text-sm font-bold text-slate-800">Self Verification</h3>
-              <p className="text-xs text-slate-500">Verify identity & details</p>
-            </div>
-            {currentFlowStep > 3 && (
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500 text-white shadow-md shadow-emerald-100">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 111.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                </svg>
-              </div>
-            )}
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            {flowSteps.slice(2, 4).map((step, index) => {
-              const actualIndex = index + 2;
-              return (
-                <button
-                  key={step}
-                  type="button"
-                  onClick={() => {
-                    setCountryConfirmed(true);
-                    setNeedsCandidateConfirmation(false);
-                    if (actualIndex === 2) {
-                      setStage("doc_upload");
-                    } else if (actualIndex === 3) {
-                      if (!compliance) runCompliance();
-                      if (!trustReport) createTrustReport();
-                    }
-                  }}
-                  className={`cursor-pointer rounded-full border px-3 py-2 text-[10px] font-bold uppercase tracking-wider transition-all ${
-                    actualIndex < currentFlowStep
-                      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                      : actualIndex === currentFlowStep
-                      ? "border-violet-400 bg-violet-500 text-white shadow-md shadow-violet-100"
-                      : "border-slate-200 bg-slate-50 text-slate-400"
-                  }`}
-                >
-                  {actualIndex + 1}. {step}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Arrow */}
-        <div className="hidden lg:flex items-center pt-10 text-slate-300">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M13 5l7 7-7 7M5 12h15" />
-          </svg>
-        </div>
-
-        {/* Certification */}
-        <div className="flex-1 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="mb-3 flex items-start justify-between">
-            <div>
-              <h3 className="text-sm font-bold text-slate-800">Get Certified</h3>
-              <p className="text-xs text-slate-500">Final approval & upgrade</p>
-            </div>
-            {cert && (
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500 text-white shadow-md shadow-emerald-100">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 111.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                </svg>
-              </div>
-            )}
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            {flowSteps.slice(4, 6).map((step, index) => {
-              const actualIndex = index + 4;
-              return (
-                <button
-                  key={step}
-                  type="button"
-                  onClick={() => {
-                    if (actualIndex === 4) {
-                      setStage("anchoring");
-                    } else if (actualIndex === 5 && cert) {
-                      setManualFlowStep(5);
-                    }
-                  }}
-                  className={`cursor-pointer rounded-full border px-3 py-2 text-[10px] font-bold uppercase tracking-wider transition-all ${
-                    actualIndex < currentFlowStep
-                      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                      : actualIndex === currentFlowStep
-                      ? "border-amber-400 bg-amber-500 text-white shadow-md shadow-amber-100"
-                      : "border-slate-200 bg-slate-50 text-slate-400"
-                  }`}
-                >
-                  {actualIndex + 1}. {step}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-      {match && (stage === "discovered" || stage === "voice_confirm" || stage === "idle") && (
         <button
           type="button"
-          onClick={startVerification}
-          className="mt-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 px-5 py-2.5 text-sm font-semibold text-white shadow-[0_12px_24px_rgb(8,120,90,0.32)] transition hover:from-emerald-500 hover:to-teal-400"
+          onClick={resetRegistration}
+          className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 shadow-sm transition hover:bg-slate-50"
         >
-          Start Verification
+          <RotateCcw size={13} /> Restart
         </button>
-      )}
+      </div>
+
+      <div className="mt-5 grid gap-3 lg:grid-cols-3">
+        {steps.map((step, index) => {
+          const active = index === currentFlowStep;
+          const stateClasses = step.done
+            ? accentClasses[step.accent].done
+            : active
+              ? accentClasses[step.accent].active
+              : accentClasses[step.accent].idle;
+          const Icon = step.Icon;
+
+          return (
+            <article key={step.title} className={`rounded-lg border p-4 shadow-sm transition ${stateClasses}`}>
+              <div className="flex items-start gap-3">
+                <div
+                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
+                    step.done ? "bg-emerald-600 text-white" : active ? accentClasses[step.accent].icon : "bg-slate-100 text-slate-400"
+                  }`}
+                >
+                  {step.done ? <Check size={18} /> : <Icon size={18} />}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[11px] font-bold uppercase tracking-wider opacity-70">Step {index + 1}</p>
+                  <h3 className="mt-1 text-sm font-bold">{step.title}</h3>
+                  <p className="mt-1 min-h-10 text-xs leading-relaxed opacity-75">{step.description}</p>
+                </div>
+              </div>
+
+              <div className="mt-4 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5 text-[11px] font-semibold opacity-75">
+                  {index === 1 ? <FileCheck2 size={13} /> : index === 2 ? <BadgeCheck size={13} /> : <Building2 size={13} />}
+                  {index === 1 && visionIdPassed ? "ID verified" : step.done ? "Complete" : active ? "Current" : "Pending"}
+                </div>
+                <button
+                  type="button"
+                  onClick={step.onAction}
+                  disabled={step.disabled}
+                  className="rounded-lg border border-current/15 bg-white/80 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider shadow-sm transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-45"
+                >
+                  {step.actionLabel}
+                </button>
+              </div>
+            </article>
+          );
+        })}
+      </div>
     </section>
   );
 }

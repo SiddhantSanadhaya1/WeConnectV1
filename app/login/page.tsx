@@ -29,7 +29,7 @@ const ROLE_CARDS: Array<{
   {
     role: "seller",
     title: "Seller",
-    description: "Open the guided seller registration dashboard.",
+    description: "Open the seller profile and continue registration if needed.",
     icon: Building2,
   },
   {
@@ -74,7 +74,7 @@ export default function LoginPage() {
       email: "seller@weconnect.demo",
       createdAt: new Date().toISOString(),
     });
-    router.push("/en/dashboard");
+    router.push("/en/profile");
   };
 
   return (
@@ -190,7 +190,7 @@ export default function LoginPage() {
                 </div>
                 <h2 className="text-xl font-bold text-[color:var(--foreground)]">Seller login</h2>
                 <p className="mt-2 max-w-xl text-sm leading-6 text-[color:var(--muted)]">
-                  Seller access opens the registration dashboard where businesses can complete the guided certification flow.
+                  Seller access opens the profile page. If no enterprise is registered yet, you will be sent to the registration workflow first.
                 </p>
                 <div className="mt-6 rounded-lg border border-[color:var(--border)] bg-[color:var(--card-muted)] p-4 text-sm text-[color:var(--muted)]">
                   Demo account: <span className="font-mono font-semibold text-[color:var(--foreground)]">seller@weconnect.demo</span>

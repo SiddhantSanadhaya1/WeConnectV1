@@ -1,19 +1,20 @@
-import { useCallback } from "react";
+import { useCallback, type Dispatch, type SetStateAction } from "react";
 import { parseJsonSafe } from "./utils";
-import { WorkflowState, CertificationType } from "./types";
-import { ComplianceResult, TrustReport } from "@/lib/domains/contracts";
+import { WorkflowState } from "./types";
+import { CertificationType, ComplianceResult, TrustReport } from "@/lib/domains/contracts";
+import { RegistrationDraft } from "@/lib/registration";
 
 export function useConciergeWorkflow(
   sessionId: string | null,
-  setWorkflow: (v: WorkflowState | null) => void,
+  setWorkflow: Dispatch<SetStateAction<WorkflowState | null>>,
   setCompliance: (v: ComplianceResult | null) => void,
   setTrustReport: (v: TrustReport | null) => void,
   setAssistant: (v: string) => void,
   setBadge: (v: string | null) => void,
-  setRegistration: (v: any) => void,
+  setRegistration: Dispatch<SetStateAction<RegistrationDraft>>,
 ) {
   const setCertificationType = useCallback(async (certificationType: CertificationType) => {
-    setRegistration((prev: any) => ({ ...prev, cert_type: certificationType }));
+    setRegistration((prev) => ({ ...prev, cert_type: certificationType }));
     if (!sessionId) {
       setAssistant("Session is still initializing. Please retry in a moment.");
       return;

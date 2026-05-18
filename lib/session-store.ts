@@ -173,6 +173,20 @@ export function getSession(id: string): SessionRecord | undefined {
   return sessions.get(id);
 }
 
+export function deleteSession(id: string): boolean {
+  const session = sessions.get(id);
+  if (!session) return false;
+  sessions.delete(id);
+  for (const cert of certificates.values()) {
+    if (cert.sessionId === id) {
+      cert.revoked = true;
+      cert.revokedReason = "Seller profile deleted";
+      certificates.set(cert.id, cert);
+    }
+  }
+  return true;
+}
+
 export function touchSession(s: SessionRecord) {
   s.updatedAt = now();
   sessions.set(s.id, s);

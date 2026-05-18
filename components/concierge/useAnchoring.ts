@@ -1,14 +1,15 @@
 import { useCallback, useState } from "react";
 import { parseJsonSafe } from "./utils";
-import { AnchorJson, Match } from "./types";
+import { AnchorJson } from "./types";
 import { RegistrationDraft } from "@/lib/registration";
+import type { CertDisplay } from "@/components/CertificateCard";
 
 export function useAnchoring(
   sessionId: string | null,
   registration: RegistrationDraft,
   paid: boolean,
   saveRegistration: (r: RegistrationDraft, p: boolean) => Promise<void>,
-  setCert: (v: any) => void,
+  setCert: (v: CertDisplay & { revoked?: boolean }) => void,
   setStage: (v: string) => void,
   setBadge: (v: string | null) => void,
   refreshSession: (sid: string) => Promise<void>,

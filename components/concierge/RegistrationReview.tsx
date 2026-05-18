@@ -1,21 +1,25 @@
-import { Match, RegistrationDraft, DiscoverJson } from "./types";
-import { FieldSource } from "@/lib/registration";
+import type { Dispatch, SetStateAction } from "react";
+import { Match, DiscoverJson, OwnershipBreakdown, OwnershipSummary } from "./types";
+import { RegistrationDraft } from "@/lib/registration";
+import { CheckCircle2, ExternalLink } from "lucide-react";
+
+type DiscoveryCandidate = NonNullable<DiscoverJson["candidates"]>[number];
 
 type RegistrationReviewProps = {
   show: boolean;
   match: Match | null;
   registration: RegistrationDraft;
-  setRegistration: (v: any) => void;
+  setRegistration: Dispatch<SetStateAction<RegistrationDraft>>;
   fieldConfidence: Partial<Record<keyof RegistrationDraft, number>>;
   fieldEvidence: Partial<Record<keyof RegistrationDraft, string>>;
   countryRequiresConfirmation: boolean;
   countryConfirmed: boolean;
   setCountryConfirmed: (v: boolean) => void;
-  ownership: any;
+  ownership: OwnershipSummary | null;
   ownershipEvidenceConfidence: number;
-  ownershipBreakdown: any;
+  ownershipBreakdown: OwnershipBreakdown | null;
   needsCandidateConfirmation: boolean;
-  discoverCandidates: any[];
+  discoverCandidates: DiscoveryCandidate[];
   selectedCandidateIndex: number;
   setSelectedCandidateIndex: (v: number) => void;
   onRunDiscover: (index: number, confirmed: boolean) => void;
@@ -24,6 +28,7 @@ type RegistrationReviewProps = {
   mergedBlockers: string[];
   anchorFailureReason: string;
   anchorOperatorHint: string;
+  onConfirmRegistration: () => void;
 };
 
 export function RegistrationReview({
@@ -49,12 +54,34 @@ export function RegistrationReview({
   mergedBlockers,
   anchorFailureReason,
   anchorOperatorHint,
+  onConfirmRegistration,
 }: RegistrationReviewProps) {
   if (!show || !match) return null;
+  const confirmDisabled =
+    needsCandidateConfirmation ||
+    (countryRequiresConfirmation && !countryConfirmed) ||
+    registrationCheck.missingRequired.length > 0;
 
   return (
-    <section className="rounded-2xl sm:rounded-3xl border border-slate-200 bg-white/85 p-4 sm:p-6 shadow-[0_14px_36px_rgb(15,23,42,0.1)] backdrop-blur-xl">
-      <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50/75 p-4 text-sm">
+    <section className="rounded-lg border border-slate-200 bg-white/85 p-4 shadow-[0_14px_36px_rgb(15,23,42,0.1)] backdrop-blur-xl sm:p-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 className="text-xl font-bold text-slate-900">Step 1: Confirm Seller Registration</h2>
+          <p className="mt-1 text-sm text-slate-600">
+            Review the organisation details that were prefilled from registry and Google web signals, then edit anything that needs correction.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onConfirmRegistration}
+          disabled={confirmDisabled}
+          className="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white shadow-[0_10px_22px_rgb(5,150,105,0.25)] transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-45"
+        >
+          <CheckCircle2 size={16} /> Confirm Details
+        </button>
+      </div>
+
+      <div className="mt-5 rounded-lg border border-emerald-200 bg-emerald-50/75 p-4 text-sm">
         <p className="font-semibold text-emerald-800">{match.companyName}</p>
         <p className="text-slate-600">{match.registrySnippet}</p>
         <p className="mt-2 text-slate-700">
@@ -108,7 +135,7 @@ export function RegistrationReview({
         ) : null}
       </div>
 
-      <div className="mt-6 rounded-2xl border border-cyan-100 bg-gradient-to-br from-cyan-50/80 to-white/80 p-5 shadow-sm backdrop-blur-md">
+      <div className="mt-6 rounded-lg border border-cyan-100 bg-gradient-to-br from-cyan-50/80 to-white/80 p-5 shadow-sm backdrop-blur-md">
         <div className="flex items-center justify-between border-b border-cyan-100/50 pb-3">
           <div>
             <h3 className="text-base font-semibold text-cyan-900">Prefill Review</h3>
@@ -116,7 +143,7 @@ export function RegistrationReview({
               Verify and edit the details fetched from the registry or web.
             </p>
           </div>
-          <div className="rounded-full bg-cyan-100/50 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-cyan-700">
+          <div className="rounded-lg bg-cyan-100/50 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-cyan-700">
             Editable
           </div>
         </div>
@@ -125,10 +152,10 @@ export function RegistrationReview({
           <label className="flex flex-col gap-1.5">
             <span className="text-[11px] font-medium uppercase tracking-wider text-cyan-800/60">Business name</span>
             <input
-              className="w-full rounded-xl border border-cyan-200/50 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm transition-all focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/10"
+              className="w-full rounded-lg border border-cyan-200/50 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm transition-all focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/10"
               value={registration.business_name}
               onChange={(e) =>
-                setRegistration((prev: any) => ({ ...prev, business_name: e.target.value }))
+                setRegistration((prev) => ({ ...prev, business_name: e.target.value }))
               }
             />
           </label>
@@ -136,11 +163,11 @@ export function RegistrationReview({
             <span className="text-[11px] font-medium uppercase tracking-wider text-cyan-800/60">Country</span>
             <div className="relative">
               <input
-                className="w-full rounded-xl border border-cyan-200/50 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm transition-all focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/10"
+                className="w-full rounded-lg border border-cyan-200/50 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm transition-all focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/10"
                 value={registration.country}
                 onChange={(e) => {
                   const next = e.target.value;
-                  setRegistration((prev: any) => ({ ...prev, country: next }));
+                  setRegistration((prev) => ({ ...prev, country: next }));
                   if (countryRequiresConfirmation) {
                     setCountryConfirmed(false);
                   }
@@ -165,10 +192,10 @@ export function RegistrationReview({
           <label className="flex flex-col gap-1.5">
             <span className="text-[11px] font-medium uppercase tracking-wider text-cyan-800/60">Primary owner</span>
             <input
-              className="w-full rounded-xl border border-cyan-200/50 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm transition-all focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/10"
+              className="w-full rounded-lg border border-cyan-200/50 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm transition-all focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/10"
               value={registration.owner_details[0]?.fullName || ""}
               onChange={(e) =>
-                setRegistration((prev: any) => ({
+                setRegistration((prev) => ({
                   ...prev,
                   owner_details: [
                     {
@@ -184,11 +211,11 @@ export function RegistrationReview({
           <label className="flex flex-col gap-1.5">
             <span className="text-[11px] font-medium uppercase tracking-wider text-cyan-800/60">NAICS codes</span>
             <input
-              className="w-full rounded-xl border border-cyan-200/50 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm transition-all focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/10 placeholder:text-slate-400"
+              className="w-full rounded-lg border border-cyan-200/50 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm transition-all focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/10 placeholder:text-slate-400"
               placeholder="e.g. 541511, 511210"
               value={registration.naics_codes.join(", ")}
               onChange={(e) =>
-                setRegistration((prev: any) => ({
+                setRegistration((prev) => ({
                   ...prev,
                   naics_codes: e.target.value
                     .split(",")
@@ -202,11 +229,11 @@ export function RegistrationReview({
           <label className="flex flex-col gap-1.5">
             <span className="text-[11px] font-medium uppercase tracking-wider text-cyan-800/60">UNSPSC codes</span>
             <input
-              className="w-full rounded-xl border border-cyan-200/50 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm transition-all focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/10 placeholder:text-slate-400"
+              className="w-full rounded-lg border border-cyan-200/50 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm transition-all focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/10 placeholder:text-slate-400"
               placeholder="e.g. 43232304, 43232107"
               value={registration.unspsc_codes.join(", ")}
               onChange={(e) =>
-                setRegistration((prev: any) => ({
+                setRegistration((prev) => ({
                   ...prev,
                   unspsc_codes: e.target.value
                     .split(",")
@@ -221,10 +248,10 @@ export function RegistrationReview({
             <span className="text-[11px] font-medium uppercase tracking-wider text-cyan-800/60">Female owned %</span>
             <input
               type="number"
-              className="w-full rounded-xl border border-cyan-200/50 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm transition-all focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/10"
+              className="w-full rounded-lg border border-cyan-200/50 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm transition-all focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/10"
               value={registration.owner_details[0]?.ownershipPct ?? 0}
               onChange={(e) =>
-                setRegistration((prev: any) => ({
+                setRegistration((prev) => ({
                   ...prev,
                   owner_details: [
                     {
@@ -241,10 +268,10 @@ export function RegistrationReview({
           <label className="flex flex-col gap-1.5">
             <span className="text-[11px] font-medium uppercase tracking-wider text-cyan-800/60">Company type</span>
             <input
-              className="w-full rounded-xl border border-cyan-200/50 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm transition-all focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/10 placeholder:text-slate-400"
+              className="w-full rounded-lg border border-cyan-200/50 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm transition-all focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/10 placeholder:text-slate-400"
               value={registration.company_type}
               onChange={(e) =>
-                setRegistration((prev: any) => ({ ...prev, company_type: e.target.value }))
+                setRegistration((prev) => ({ ...prev, company_type: e.target.value }))
               }
               placeholder="e.g. Private Limited, LLP"
             />
@@ -270,11 +297,11 @@ export function RegistrationReview({
         <label className="mt-4 flex flex-col gap-1.5">
           <span className="text-[11px] font-medium uppercase tracking-wider text-cyan-800/60">Business description (min 30 chars)</span>
           <textarea
-            className="w-full rounded-xl border border-cyan-200/50 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm transition-all focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/10"
+            className="w-full rounded-lg border border-cyan-200/50 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm transition-all focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/10"
             rows={3}
             value={registration.business_description}
             onChange={(e) =>
-              setRegistration((prev: any) => ({ ...prev, business_description: e.target.value }))
+              setRegistration((prev) => ({ ...prev, business_description: e.target.value }))
             }
           />
         </label>
@@ -296,7 +323,7 @@ export function RegistrationReview({
         </div>
         
         {!!discoverCandidates.length && (
-          <div className="mt-5 rounded-2xl border border-slate-100 bg-slate-50/50 p-4">
+            <div className="mt-5 rounded-lg border border-slate-100 bg-slate-50/50 p-4">
             <div className="flex items-center justify-between mb-3">
               <p className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Web Search Candidates</p>
               <div className="flex items-center gap-2">
@@ -305,7 +332,7 @@ export function RegistrationReview({
                   value={selectedCandidateIndex}
                   onChange={(e) => setSelectedCandidateIndex(Number(e.target.value))}
                 >
-                  {discoverCandidates.slice(0, 3).map((c: any, idx: number) => (
+                  {discoverCandidates.slice(0, 3).map((c, idx) => (
                     <option key={`${c.url}-${idx}`} value={idx}>
                       Candidate #{idx + 1} ({c.score ?? 0})
                     </option>
@@ -314,17 +341,17 @@ export function RegistrationReview({
                 <button
                   type="button"
                   onClick={() => onRunDiscover(selectedCandidateIndex, true)}
-                  className="rounded-lg bg-cyan-600 px-3 py-1 text-[11px] font-bold text-white transition-all hover:bg-cyan-500"
+                  className="inline-flex items-center gap-1 rounded-lg bg-cyan-600 px-3 py-1 text-[11px] font-bold text-white transition-all hover:bg-cyan-500"
                 >
-                  USE THIS
+                  USE THIS <ExternalLink size={11} />
                 </button>
               </div>
             </div>
             <div className="space-y-2">
-              {discoverCandidates.slice(0, 3).map((c: any, idx: number) => (
+              {discoverCandidates.slice(0, 3).map((c, idx) => (
                 <div 
                   key={`${c.url}-${idx}`} 
-                  className={`rounded-xl border p-3 transition-all ${idx === selectedCandidateIndex ? "border-cyan-200 bg-white shadow-sm ring-1 ring-cyan-100" : "border-slate-100 bg-white/50 opacity-60"}`}
+                  className={`rounded-lg border p-3 transition-all ${idx === selectedCandidateIndex ? "border-cyan-200 bg-white shadow-sm ring-1 ring-cyan-100" : "border-slate-100 bg-white/50 opacity-60"}`}
                 >
                   <p className="text-xs font-bold text-slate-800">{c.title}</p>
                   <p className="mt-1 text-[10px] leading-relaxed text-slate-500 line-clamp-2">{c.snippet}</p>
@@ -351,6 +378,20 @@ export function RegistrationReview({
         {anchorOperatorHint ? (
           <p className="mt-2 text-xs text-amber-300">Anchor action: {anchorOperatorHint}</p>
         ) : null}
+
+        <div className="mt-6 flex flex-col gap-3 border-t border-cyan-100/50 pt-4 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs text-slate-500">
+            Registration must be complete before document upload and webcam ID verification can start.
+          </p>
+          <button
+            type="button"
+            onClick={onConfirmRegistration}
+            disabled={confirmDisabled}
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white shadow-[0_10px_22px_rgb(5,150,105,0.25)] transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-45"
+          >
+            <CheckCircle2 size={16} /> Confirm Details
+          </button>
+        </div>
       </div>
     </section>
   );

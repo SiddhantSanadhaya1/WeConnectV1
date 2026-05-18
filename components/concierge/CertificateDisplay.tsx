@@ -1,8 +1,11 @@
-import { CertificateCard } from "../CertificateCard";
+import { CertificateCard, type CertDisplay } from "../CertificateCard";
+import { BadgeCheck, Download, ShieldCheck } from "lucide-react";
+
+type DisplayCertificate = CertDisplay & { revoked?: boolean };
 
 type CertificateDisplayProps = {
   show: boolean;
-  cert: any;
+  cert: DisplayCertificate | null;
   verifyUrl: string;
   downloadCertificatePdf: () => void;
   downloadingCertificate: boolean;
@@ -32,7 +35,7 @@ export function CertificateDisplay({
   if (!show) return null;
 
   return (
-    <section className="rounded-2xl sm:rounded-[32px] border border-white/40 bg-white/80 p-4 sm:p-6 shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] backdrop-blur-xl">
+    <section className="rounded-lg border border-white/40 bg-white/80 p-4 shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] backdrop-blur-xl sm:p-6">
        {cert ? (
          <div className="space-y-3">
            <CertificateCard cert={cert} verifyUrl={verifyUrl || `/verify/${cert.id}`} />
@@ -40,28 +43,30 @@ export function CertificateDisplay({
              type="button"
              onClick={downloadCertificatePdf}
              disabled={downloadingCertificate}
-             className="w-full rounded-2xl border border-[#fac400] bg-[#fac400] py-3 text-sm font-black uppercase tracking-wider text-black transition-all hover:brightness-95 disabled:opacity-40"
+             className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-[#fac400] bg-[#fac400] py-3 text-sm font-black uppercase tracking-wider text-black transition-all hover:brightness-95 disabled:opacity-40"
            >
-             {downloadingCertificate ? "PREPARING CERTIFICATE..." : "DOWNLOAD OFFICIAL CERTIFICATE PDF"}
+             <Download size={16} /> {downloadingCertificate ? "Preparing Certificate..." : "Download Self Verification Certificate"}
            </button>
-           <div className="mt-6 rounded-xl border border-blue-100 bg-blue-50 p-4 text-center">
-             <p className="text-sm font-bold text-blue-800">Your Self-Certified Certificate is ready!</p>
-             <p className="mt-1 text-xs text-blue-600">Want higher trust? Upgrade to Digital Certification in the next step.</p>
+           <div className="mt-6 rounded-lg border border-blue-100 bg-blue-50 p-4 text-center">
+             <p className="flex items-center justify-center gap-2 text-sm font-bold text-blue-800">
+               <BadgeCheck size={16} /> Self verification certificate ready
+             </p>
+             <p className="mt-1 text-xs text-blue-600">Next, sellers are recommended to apply for paid Digital Certification for a 72-hour authenticity review.</p>
              <button 
-               onClick={() => setManualFlowStep(5)}
-               className="mt-3 rounded-lg bg-blue-600 px-4 py-2 text-xs font-bold text-white shadow-md shadow-blue-200"
+               onClick={() => setManualFlowStep(2)}
+               className="mt-3 inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-xs font-bold text-white shadow-md shadow-blue-200 transition hover:bg-blue-500"
              >
-               Go to Step 6: Digital Upgrade
+               <ShieldCheck size={14} /> Go to Step 3
              </button>
            </div>
          </div>
        ) : (
          <div className="text-center py-8">
-           <h2 className="text-xl font-bold tracking-tight text-slate-900">Issue your Certificate</h2>
-           <p className="mt-1 text-sm text-slate-500">Your self-verification is complete. You can now issue your certificate.</p>
+           <h2 className="text-xl font-bold tracking-tight text-slate-900">Generate Self Verification Certificate</h2>
+           <p className="mt-1 text-sm text-slate-500">Your documents and webcam ID check are complete. Anchor the certificate on blockchain and make it downloadable.</p>
            
            {!!mergedBlockers.length && (
-            <div className="mt-4 rounded-xl border border-rose-100 bg-rose-50 p-3 text-xs text-rose-700">
+            <div className="mt-4 rounded-lg border border-rose-100 bg-rose-50 p-3 text-xs text-rose-700">
               <p className="font-bold">Missing Requirements:</p>
               <p>{mergedBlockers.join(", ")}</p>
             </div>
@@ -80,9 +85,9 @@ export function CertificateDisplay({
                anchorCert();
              }}
              disabled={anchoring}
-             className="mt-8 w-full max-w-sm rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 py-4 text-sm font-black uppercase tracking-widest text-white shadow-lg shadow-emerald-200 transition-all hover:-translate-y-0.5"
+             className="mt-8 inline-flex w-full max-w-sm items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-500 py-4 text-sm font-black uppercase tracking-widest text-white shadow-lg shadow-emerald-200 transition-all hover:-translate-y-0.5 disabled:opacity-50"
            >
-             {anchoring ? "ISSUING CERTIFICATE..." : "ISSUE CERTIFICATE"}
+             <BadgeCheck size={17} /> {anchoring ? "Issuing Certificate..." : "Issue Certificate"}
            </button>
          </div>
        )}

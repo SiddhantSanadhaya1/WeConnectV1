@@ -1,10 +1,28 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Search, Filter, Globe, CheckCircle, Shield, Link2, Download, X, Sparkles, MessageCircle } from "lucide-react";
+import {
+  BadgeCheck,
+  BriefcaseBusiness,
+  Building2,
+  CheckCircle,
+  Download,
+  ExternalLink,
+  Globe,
+  Link2,
+  MessageCircle,
+  Search,
+  Send,
+  Shield,
+  Sparkles,
+  Tags,
+  TrendingUp,
+  Users,
+  X,
+} from "lucide-react";
 import Navbar from "@/components/layout/Navbar";
 import AuthGate from "@/components/auth/AuthGate";
-import { NAICS_CODES } from "@/lib/constants";
+import { NAICS_CODES, UNSPSC_CODES } from "@/lib/constants";
 import { cn, getCertTypeLabel } from "@/lib/utils";
 import { trustLevelLabel, type RiskLevel } from "@/lib/domains/contracts";
 import type { CertType, CertStatus } from "@/types";
@@ -52,6 +70,27 @@ type CertificateListItem = {
   revoked: boolean;
 };
 
+type ChatMessage = {
+  id: string;
+  author: "buyer" | "seller";
+  body: string;
+  timestamp: string;
+};
+
+type SocialAccount = {
+  label: string;
+  handle: string;
+  href: string;
+};
+
+type SocialPost = {
+  id: string;
+  channel: string;
+  body: string;
+  metric: string;
+  postedAt: string;
+};
+
 interface Filters {
   query: string;
   cert_type: CertType | "";
@@ -70,20 +109,170 @@ const EMPTY_FILTERS: Filters = {
   women_owned: null,
 };
 
+const BUYER_SEGMENTS = [
+  "Enterprise procurement teams",
+  "Regional sourcing managers",
+  "Diversity spend programs",
+  "Category leads",
+  "Global supply chain teams",
+  "Mid-market buyers",
+];
+
+const ASSISTANT_SUGGESTIONS = [
+  "Healthcare suppliers with Digital-Cert",
+  "Women-led tech companies in United States",
+  "Manufacturing firms with B-Corp certification",
+  "Small businesses in the energy sector",
+  "Food service companies in New York",
+];
+
+function hashText(text: string): number {
+  return [...text].reduce((total, char) => total + char.charCodeAt(0), 0);
+}
+
+function toSlug(text: string): string {
+  return text.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+}
+
+function formatCodeLabels(codes: string[], labels: Map<string, string>) {
+  return codes.map((code) => labels.get(code) ?? code);
+}
+
+function generatedKeywords(row: ResultRow, naicsLabels: Map<string, string>, unspscLabels: Map<string, string>) {
+  const source = [
+    row.supplier.business_name,
+    row.supplier.country,
+    row.supplier.business_summary,
+    ...row.supplier.designations,
+    ...formatCodeLabels(row.supplier.industry_codes, naicsLabels),
+    ...formatCodeLabels(row.supplier.category_codes, unspscLabels),
+  ]
+    .join(" ")
+    .toLowerCase();
+
+  const tokens = source
+    .split(/[^a-z0-9+-]+/)
+    .map((token) => token.trim())
+    .filter((token) => token.length > 3 && !["with", "from", "this", "that", "business", "supplier"].includes(token));
+
+  return Array.from(new Set(tokens)).slice(0, 10);
+}
+
+function buyerContext(row: ResultRow) {
+  const seed = hashText(row.supplier.id);
+  const segment = BUYER_SEGMENTS[seed % BUYER_SEGMENTS.length];
+  const repeatRate = 62 + (seed % 27);
+  const recentBuys = 3 + (seed % 8);
+  return {
+    segment,
+    repeatRate,
+    recentBuys,
+    leadTime: `${7 + (seed % 14)} day avg response`,
+  };
+}
+
+function socialAccounts(row: ResultRow): SocialAccount[] {
+  const slug = toSlug(row.supplier.business_name);
+  return [
+    { label: "LinkedIn", handle: `@${slug}`, href: `https://www.linkedin.com/company/${slug}` },
+    { label: "X", handle: `@${slug.slice(0, 15)}`, href: `https://x.com/${slug.replace(/-/g, "").slice(0, 15)}` },
+    { label: "Website", handle: `${slug}.example.com`, href: `https://${slug}.example.com` },
+  ];
+}
+
+function socialPosts(row: ResultRow, keywords: string[]): SocialPost[] {
+  const seed = hashText(row.supplier.id);
+  const primaryKeyword = keywords[0] ?? "procurement";
+  const secondaryKeyword = keywords[1] ?? "supplier readiness";
+  return [
+    {
+      id: `${row.supplier.id}-post-1`,
+      channel: "LinkedIn",
+      body: `${row.supplier.business_name} shared a buyer success update on ${primaryKeyword} delivery for ${row.supplier.country} procurement teams.`,
+      metric: `${24 + (seed % 58)} buyer reactions`,
+      postedAt: `${2 + (seed % 5)}d ago`,
+    },
+    {
+      id: `${row.supplier.id}-post-2`,
+      channel: "X",
+      body: `New capacity note: accepting conversations for ${secondaryKeyword} projects with verified enterprise buyers this quarter.`,
+      metric: `${8 + (seed % 19)} reposts`,
+      postedAt: `${5 + (seed % 8)}d ago`,
+    },
+  ];
+}
+
+function initialChatMessages(row: ResultRow): ChatMessage[] {
+  return [
+    {
+      id: `${row.supplier.id}-seller-1`,
+      author: "seller",
+      body: `Hi, this is ${row.supplier.business_name}. We can share capability details, certifications, and buyer references for your sourcing review.`,
+      timestamp: "09:30",
+    },
+    {
+      id: `${row.supplier.id}-buyer-1`,
+      author: "buyer",
+      body: "Thanks. I am reviewing fit, trust score, and recent buyer activity before inviting suppliers to the next sourcing round.",
+      timestamp: "09:32",
+    },
+    {
+      id: `${row.supplier.id}-seller-2`,
+      author: "seller",
+      body: `Happy to help. Our profile is currently ${row.supplier.cert_status}, and we typically respond with scope details within ${buyerContext(row).leadTime}.`,
+      timestamp: "09:34",
+    },
+  ];
+}
+
 export default function BuyerPortalPage() {
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
-  const [showFilters, setShowFilters] = useState(false);
+  const [assistantMode, setAssistantMode] = useState<"ai" | "search">("ai");
+  const [assistantDraft, setAssistantDraft] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
   const [rows, setRows] = useState<ResultRow[]>([]);
   const [recommendations, setRecommendations] = useState<ResultRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState<"verify" | "rfp" | "audit" | null>(null);
   const [actionMessage, setActionMessage] = useState<string>("");
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatDraft, setChatDraft] = useState("");
+  const [chatMessagesBySupplier, setChatMessagesBySupplier] = useState<Record<string, ChatMessage[]>>({});
   const [requestedSupplierId] = useState(() =>
     typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("supplierId"),
   );
 
-  const set = (key: keyof Filters, val: unknown) => setFilters((f) => ({ ...f, [key]: val }));
+  const runAssistantSearch = (value = assistantDraft) => {
+    const query = value.trim();
+    const normalized = query.toLowerCase();
+
+    setSelected(null);
+    setAssistantDraft(query);
+    setFilters({
+      query,
+      cert_type: normalized.includes("digital-cert") || normalized.includes("digital certified") ? "digital" : "",
+      cert_status: normalized.includes("active") ? "active" : "",
+      naics: normalized.includes("health") || normalized.includes("medical")
+        ? "62"
+        : normalized.includes("manufactur") || normalized.includes("textile")
+          ? "31-33"
+          : normalized.includes("energy") || normalized.includes("utility")
+            ? "22"
+            : normalized.includes("food") || normalized.includes("hospitality")
+              ? "72"
+              : normalized.includes("tech") || normalized.includes("software") || normalized.includes("digital")
+                ? "54"
+                : "",
+      country: normalized.includes("united states") || normalized.includes("boston") || normalized.includes("austin") || normalized.includes("new york")
+        ? "United States"
+        : normalized.includes("india")
+          ? "India"
+          : normalized.includes("canada")
+            ? "Canada"
+            : "",
+      women_owned: normalized.includes("women-led") || normalized.includes("women owned") || normalized.includes("women-owned") ? true : null,
+    });
+  };
 
   useEffect(() => {
     const load = async () => {
@@ -109,7 +298,6 @@ export default function BuyerPortalPage() {
 
   const selectedId = selected ?? requestedSupplierId;
   const supplier = useMemo(() => rows.find((s) => s.supplier.id === selectedId) ?? null, [rows, selectedId]);
-  const activeFilterCount = Object.entries(filters).filter(([, v]) => v !== "" && v !== null).length;
   const naicsLabelByCode = useMemo(
     () =>
       new Map(
@@ -120,6 +308,32 @@ export default function BuyerPortalPage() {
       ),
     [],
   );
+  const unspscLabelByCode = useMemo(
+    () =>
+      new Map(
+        UNSPSC_CODES.map((entry) => [
+          entry.code,
+          `${entry.code} - ${entry.label}`,
+        ]),
+      ),
+    [],
+  );
+  const similarSuppliers = useMemo(() => {
+    if (!supplier) return [];
+    const selectedIndustries = new Set(supplier.supplier.industry_codes);
+    return rows
+      .filter((row) => row.supplier.id !== supplier.supplier.id)
+      .filter((row) => row.supplier.industry_codes.some((code) => selectedIndustries.has(code)))
+      .slice(0, 3);
+  }, [rows, supplier]);
+  const supplierKeywords = useMemo(
+    () => (supplier ? generatedKeywords(supplier, naicsLabelByCode, unspscLabelByCode) : []),
+    [naicsLabelByCode, supplier, unspscLabelByCode],
+  );
+  const selectedBuyerContext = supplier ? buyerContext(supplier) : null;
+  const supplierSocialAccounts = supplier ? socialAccounts(supplier) : [];
+  const supplierSocialPosts = supplier ? socialPosts(supplier, supplierKeywords) : [];
+  const selectedChatMessages = supplier ? chatMessagesBySupplier[supplier.supplier.id] ?? initialChatMessages(supplier) : [];
 
   const runVerifyCert = async () => {
     if (!supplier) return;
@@ -178,6 +392,47 @@ export default function BuyerPortalPage() {
     }
   };
 
+  const runStartChat = () => {
+    if (!supplier) return;
+    setChatOpen(true);
+    setChatMessagesBySupplier((current) => ({
+      ...current,
+      [supplier.supplier.id]: current[supplier.supplier.id] ?? initialChatMessages(supplier),
+    }));
+    setActionMessage(
+      `Chat opened with ${supplier.supplier.business_name}. Share your requirements, timeline, and documents to start seller engagement.`,
+    );
+  };
+
+  const sendChatMessage = () => {
+    if (!supplier) return;
+    const body = chatDraft.trim();
+    if (!body) return;
+    const now = new Date();
+    const timestamp = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    const buyerMessage: ChatMessage = {
+      id: `${supplier.supplier.id}-buyer-${now.getTime()}`,
+      author: "buyer",
+      body,
+      timestamp,
+    };
+    const replyMessage: ChatMessage = {
+      id: `${supplier.supplier.id}-seller-${now.getTime()}`,
+      author: "seller",
+      body: `Received. ${supplier.supplier.business_name} will prepare a short capability response and suggested next step for this requirement.`,
+      timestamp,
+    };
+    setChatMessagesBySupplier((current) => ({
+      ...current,
+      [supplier.supplier.id]: [
+        ...(current[supplier.supplier.id] ?? initialChatMessages(supplier)),
+        buyerMessage,
+        replyMessage,
+      ],
+    }));
+    setChatDraft("");
+  };
+
   const runAuditReport = async () => {
     if (!supplier) return;
     setActionLoading("audit");
@@ -221,11 +476,12 @@ export default function BuyerPortalPage() {
       {(session) => (
     <div className="app-shell">
       <Navbar />
-      <main className="mx-auto max-w-7xl px-4 sm:px-6 py-6 sm:py-8">
+      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:pr-[360px]">
         <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h1 className="font-display text-xl sm:text-2xl font-bold text-zinc-50">Buyer Portal</h1>
-            <p className="mt-0.5 text-sm text-zinc-400">Certification-prioritized supplier discovery with AI match scoring</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--brand-teal)]">Buyer sourcing workspace</p>
+            <h1 className="mt-1 font-display text-2xl font-bold text-zinc-50 sm:text-3xl">Discover verified suppliers</h1>
+            <p className="mt-1 max-w-2xl text-sm text-zinc-400">Review organization details, trust signals, buyer activity, and seller engagement options in one procurement-ready view.</p>
           </div>
           <button className="btn-outline gap-2 py-2 text-sm w-full sm:w-auto">
             <Download size={14} />Export CSV
@@ -233,7 +489,7 @@ export default function BuyerPortalPage() {
         </div>
 
         <div className="mb-4 rounded-lg border border-[color:var(--border)] bg-[color:var(--card-muted)] p-3 text-xs text-[color:var(--muted-strong)]">
-          Ranking policy: <strong>Digital Certified</strong> → <strong>Self-Certified</strong> → <strong>Self-Declared</strong>
+          Ranking policy: <strong>Digital Certified</strong> comes first, followed by <strong>Self-Certified</strong> and <strong>Self-Declared</strong> suppliers. Trust score and match relevance refine the final order.
         </div>
 
         {session.role === "seller" ? (
@@ -247,8 +503,8 @@ export default function BuyerPortalPage() {
 
         {recommendations.length > 0 && (
           <section className="enterprise-panel mb-5 rounded-lg p-4">
-            <p className="mb-2 flex items-center gap-2 text-sm font-semibold text-zinc-200">
-              <Sparkles size={14} className="text-cyan-400" /> Top recommended suppliers based on your requirement
+            <p className="mb-3 flex items-center gap-2 text-sm font-semibold text-zinc-200">
+              <Sparkles size={14} className="text-[color:var(--brand-teal)]" /> Similar buyers bought from these recommended suppliers
             </p>
             <div className="grid gap-2 grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
               {recommendations.map((row) => (
@@ -258,102 +514,116 @@ export default function BuyerPortalPage() {
                   className="rounded-lg border border-[color:var(--border)] bg-[color:var(--card)] p-3 text-left transition-colors hover:border-[color:var(--border-strong)]"
                 >
                   <p className="text-sm font-semibold text-zinc-100">{row.supplier.business_name}</p>
-                  <p className="text-xs text-zinc-500">Match Score: {row.match.matchScore}%</p>
+                  <p className="mt-1 text-xs text-zinc-500">{buyerContext(row).segment}</p>
+                  <p className="mt-2 text-xs font-semibold text-[color:var(--brand-teal)]">Match Score: {row.match.matchScore}%</p>
                 </button>
               ))}
             </div>
           </section>
         )}
 
-        <div className="mb-4 flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1">
-            <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500" />
-            <input
-              className="flex h-9 w-full rounded-md border border-zinc-800 bg-transparent px-3 py-1 pl-10 text-sm shadow-sm transition-colors placeholder:text-zinc-500 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-300"
-              placeholder="Natural language search (e.g. Women-owned textile suppliers in India)"
-              value={filters.query}
-              onChange={(e) => set("query", e.target.value)}
-            />
-          </div>
-          <button
-            onClick={() => setShowFilters(!showFilters)}
-            className={cn("btn-outline relative gap-2 py-2 text-sm", showFilters && "border-[color:var(--border-strong)] bg-[color:var(--card-muted)]")}
-          >
-            <Filter size={14} />Filters
-            {activeFilterCount > 0 && (
-              <span className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-zinc-100 text-[9px] font-bold text-zinc-950">
-                {activeFilterCount}
+        <section className="mb-5 rounded-lg border border-[color:var(--border-strong)] bg-[color:var(--card-elevated)] p-4 shadow-[var(--shadow-soft)] lg:fixed lg:right-6 lg:top-24 lg:z-30 lg:mb-0 lg:max-h-[calc(100vh-7rem)] lg:w-[320px] lg:overflow-y-auto">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[linear-gradient(135deg,#a855f7,#2563eb)] text-white shadow-sm">
+                <Sparkles size={16} />
               </span>
-            )}
-          </button>
-        </div>
-
-        {showFilters && (
-          <div className="enterprise-panel mb-5 rounded-lg p-6 shadow">
-            <div className="mb-4 flex items-center justify-between">
-              <p className="font-semibold text-zinc-50">Filters</p>
+              <h2 className="text-base font-bold text-[color:var(--foreground)] sm:text-lg">Search Assistant</h2>
+            </div>
+            {(filters.query || filters.cert_type || filters.cert_status || filters.naics || filters.country || filters.women_owned !== null) && (
               <button
-                onClick={() => setFilters(EMPTY_FILTERS)}
-                className="flex items-center gap-1 text-xs font-medium text-zinc-400 hover:underline"
+                type="button"
+                onClick={() => {
+                  setAssistantDraft("");
+                  setFilters(EMPTY_FILTERS);
+                  setSelected(null);
+                }}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-[color:var(--border)] bg-[color:var(--card)] text-[color:var(--muted)] transition-colors hover:border-[color:var(--border-strong)] hover:text-[color:var(--foreground)]"
+                aria-label="Clear search"
               >
-                <X size={11} />Clear all
+                <X size={14} />
               </button>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 lg:grid-cols-5">
-              <div>
-                <label className="mb-1.5 block text-xs font-semibold text-zinc-300">Cert Type</label>
-                <select className="flex h-9 w-full cursor-pointer appearance-none rounded-md border border-zinc-800 bg-transparent px-3 py-2 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-300" value={filters.cert_type} onChange={(e) => set("cert_type", e.target.value)}>
-                  <option value="">Any</option>
-                  <option value="digital">Digital-Certified</option>
-                  <option value="self">Self-Certified</option>
-                  <option value="none">Self-Declared</option>
-                </select>
-              </div>
-              <div>
-                <label className="mb-1.5 block text-xs font-semibold text-zinc-300">Cert Status</label>
-                <select className="flex h-9 w-full cursor-pointer appearance-none rounded-md border border-zinc-800 bg-transparent px-3 py-2 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-300" value={filters.cert_status} onChange={(e) => set("cert_status", e.target.value)}>
-                  <option value="">Any</option>
-                  <option value="active">Active</option>
-                  <option value="pending">Pending</option>
-                  <option value="expired">Expired</option>
-                </select>
-              </div>
-              <div>
-                <label className="mb-1.5 block text-xs font-semibold text-zinc-300">Industry (NAICS)</label>
-                <select className="flex h-9 w-full cursor-pointer appearance-none rounded-md border border-zinc-800 bg-transparent px-3 py-2 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-300" value={filters.naics} onChange={(e) => set("naics", e.target.value)}>
-                  <option value="">Any</option>
-                  {NAICS_CODES.map((n) => (
-                    <option key={n.code} value={n.code}>{n.code} - {n.label.split(",")[0]}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="mb-1.5 block text-xs font-semibold text-zinc-300">Country</label>
-                <input className="flex h-9 w-full rounded-md border border-zinc-800 bg-transparent px-3 py-2 text-sm shadow-sm transition-colors placeholder:text-zinc-500 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-300" placeholder="e.g. India" value={filters.country} onChange={(e) => set("country", e.target.value)} />
-              </div>
-              <div>
-                <label className="mb-1.5 block text-xs font-semibold text-zinc-300">Women-Owned</label>
-                <select className="flex h-9 w-full cursor-pointer appearance-none rounded-md border border-zinc-800 bg-transparent px-3 py-2 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-300" value={filters.women_owned === null ? "" : String(filters.women_owned)} onChange={(e) => set("women_owned", e.target.value === "" ? null : e.target.value === "true")}>
-                  <option value="">Any</option>
-                  <option value="true">Yes</option>
-                  <option value="false">No</option>
-                </select>
-              </div>
-            </div>
+            )}
           </div>
-        )}
+
+          <div className="mb-4 grid grid-cols-2 gap-2.5">
+            <button
+              type="button"
+              onClick={() => setAssistantMode("ai")}
+              className={cn(
+                "inline-flex h-10 items-center justify-center gap-2 rounded-lg border text-xs font-bold transition-colors sm:text-sm",
+                assistantMode === "ai"
+                  ? "border-transparent bg-[linear-gradient(135deg,#a855f7,#2563eb)] text-white shadow-sm"
+                  : "border-[color:var(--border)] bg-[color:var(--card)] text-[color:var(--foreground)] hover:border-[color:var(--border-strong)]",
+              )}
+            >
+              <Sparkles size={14} />AI
+            </button>
+            <button
+              type="button"
+              onClick={() => setAssistantMode("search")}
+              className={cn(
+                "inline-flex h-10 items-center justify-center gap-2 rounded-lg border text-xs font-bold transition-colors sm:text-sm",
+                assistantMode === "search"
+                  ? "border-transparent bg-[linear-gradient(135deg,#087f8c,#2563eb)] text-white shadow-sm"
+                  : "border-[color:var(--border)] bg-[color:var(--card)] text-[color:var(--foreground)] hover:border-[color:var(--border-strong)]",
+              )}
+            >
+              <Search size={15} />Search
+            </button>
+          </div>
+
+          <form
+            className="mb-4 flex gap-2"
+            onSubmit={(event) => {
+              event.preventDefault();
+              runAssistantSearch();
+            }}
+          >
+            <div className="relative flex-1">
+              <Sparkles size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-fuchsia-500" />
+              <input
+                className="h-11 w-full rounded-lg border border-[color:var(--border-strong)] bg-[color:var(--card)] px-3 pl-9 text-sm font-medium text-[color:var(--foreground)] shadow-sm transition-colors placeholder:text-[color:var(--muted)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[color:var(--ring-soft)]"
+                placeholder={assistantMode === "ai" ? "Ask me anything..." : "Search verified suppliers..."}
+                value={assistantDraft}
+                onChange={(event) => setAssistantDraft(event.target.value)}
+              />
+            </div>
+            <button
+              type="submit"
+              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-[linear-gradient(135deg,#c084fc,#60a5fa)] text-white shadow-sm transition-transform hover:-translate-y-0.5"
+              aria-label="Run supplier search"
+            >
+              <Send size={16} />
+            </button>
+          </form>
+
+          <p className="mb-2.5 text-xs font-bold text-[color:var(--muted-strong)]">Try asking:</p>
+          <div className="space-y-2">
+            {ASSISTANT_SUGGESTIONS.map((suggestion) => (
+              <button
+                key={suggestion}
+                type="button"
+                onClick={() => runAssistantSearch(suggestion)}
+                className="block min-h-9 w-full rounded-lg border border-[color:var(--border)] bg-[color:var(--card)] px-3 py-2 text-left text-xs font-semibold text-[color:var(--muted-strong)] transition-colors hover:border-[color:var(--border-strong)] hover:text-[color:var(--foreground)]"
+              >
+                {suggestion}
+              </button>
+            ))}
+          </div>
+        </section>
 
         <p className="mb-4 text-sm text-zinc-500">
           {loading ? "Loading..." : `${rows.length} supplier${rows.length !== 1 ? "s" : ""} found`}
         </p>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-          <div className={cn("space-y-3", supplier ? "lg:col-span-7" : "lg:col-span-12 grid grid-cols-1 gap-4 space-y-0 sm:grid-cols-2 lg:grid-cols-3")}>
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-12">
+          <div className={cn("space-y-3", supplier ? "lg:col-span-5" : "lg:col-span-12 grid grid-cols-1 gap-4 space-y-0 sm:grid-cols-2 lg:grid-cols-3")}>
             {rows.map((row) => (
-              <div key={row.supplier.id} onClick={() => setSelected(row.supplier.id === selectedId ? null : row.supplier.id)} className={cn("enterprise-panel cursor-pointer rounded-lg p-6 shadow transition-all hover:shadow-md", selectedId === row.supplier.id && "ring-2 ring-[color:var(--border-strong)]")}>
-                <div className="mb-2 flex items-start justify-between">
+              <div key={row.supplier.id} onClick={() => setSelected(row.supplier.id === selectedId ? null : row.supplier.id)} className={cn("enterprise-panel cursor-pointer rounded-lg p-5 shadow transition-all hover:-translate-y-0.5 hover:shadow-md", selectedId === row.supplier.id && "ring-2 ring-[color:var(--brand-rose)]")}>
+                <div className="mb-3 flex items-start justify-between gap-3">
                   <div>
-                    <h3 className="text-sm font-bold text-zinc-100">{row.supplier.business_name}</h3>
+                    <h3 className="text-base font-bold text-zinc-100">{row.supplier.business_name}</h3>
                     <div className="mt-0.5 flex items-center gap-1.5 text-xs text-zinc-400">
                       <Globe size={11} />{row.supplier.country}
                     </div>
@@ -363,8 +633,14 @@ export default function BuyerPortalPage() {
                     <p className="text-[10px] text-zinc-500">Trust Score</p>
                   </div>
                 </div>
-                <p className="mb-2 text-xs text-cyan-300">{trustLevelLabel(row.profile.trustLevel)}</p>
-                <p className="mb-2 text-xs text-zinc-400">Match Score: <span className="font-semibold text-zinc-200">{row.match.matchScore}%</span></p>
+                <div className="mb-3 flex flex-wrap gap-2">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-[color:var(--card-muted)] px-2.5 py-1 text-xs font-semibold text-[color:var(--brand-teal)]">
+                    <Shield size={11} /> {trustLevelLabel(row.profile.trustLevel)}
+                  </span>
+                  <span className="inline-flex items-center gap-1 rounded-full bg-[color:var(--card-muted)] px-2.5 py-1 text-xs font-semibold text-[color:var(--brand-plum)]">
+                    <TrendingUp size={11} /> {row.match.matchScore}% match
+                  </span>
+                </div>
                 <p className="mb-1 text-xs text-zinc-400">
                   Category (NAICS):{" "}
                   <span className="text-zinc-200">
@@ -379,10 +655,13 @@ export default function BuyerPortalPage() {
                 <p className="mb-2 text-xs text-zinc-400">
                   Last Verified: <span className="text-zinc-200">{row.profile.lastVerified || "N/A"}</span>
                 </p>
-                <p className="mb-2 text-xs text-zinc-500">{row.supplier.business_summary ?? "Business summary unavailable."}</p>
+                <p className="mb-3 text-xs leading-5 text-zinc-500">{row.supplier.business_summary ?? "Business summary unavailable."}</p>
                 <p className="mb-2 text-xs text-zinc-400">{row.supplier.clients_worked_with ?? "Worked with 5 clients (mock)"}</p>
                 <div className="mb-3 flex flex-wrap gap-1.5">
-                  <span className={cn("inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold", row.supplier.cert_type === "digital" ? "border-zinc-700 bg-zinc-800 text-zinc-100" : "border-zinc-800 bg-transparent text-zinc-400")}>{getCertTypeLabel(row.supplier.cert_type)}</span>
+                  <span className={cn("inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold", row.supplier.cert_type === "digital" ? "border-[color:var(--brand-teal)] bg-[color:var(--card-muted)] text-[color:var(--brand-teal)]" : "border-zinc-800 bg-transparent text-zinc-400")}>
+                    {row.supplier.cert_type === "digital" ? <BadgeCheck size={11} /> : null}
+                    {getCertTypeLabel(row.supplier.cert_type)}
+                  </span>
                   {row.supplier.blockchain_verified && (
                     <span className="inline-flex items-center gap-1 rounded-full border border-zinc-700 bg-zinc-800 px-2.5 py-0.5 text-xs font-semibold text-zinc-300"><Link2 size={9} />Blockchain</span>
                   )}
@@ -403,68 +682,268 @@ export default function BuyerPortalPage() {
           </div>
 
           {supplier && (
-            <div className="lg:col-span-5">
-              <div className="enterprise-panel sticky top-24 space-y-4 rounded-lg p-6 shadow">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <h2 className="font-bold text-zinc-100">{supplier.supplier.business_name}</h2>
-                    <div className="mt-0.5 flex items-center gap-1.5 text-sm text-zinc-400"><Globe size={13} />{supplier.supplier.country}</div>
+            <div className="lg:col-span-7">
+              <div className="enterprise-panel sticky top-24 space-y-5 rounded-lg p-5 shadow">
+                <div className="rounded-lg border border-[color:var(--border)] bg-[color:var(--card-muted)] p-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <div className="mb-3 inline-flex h-11 w-11 items-center justify-center rounded-lg bg-[color:var(--card)] text-[color:var(--brand-plum)] shadow-sm">
+                        <Building2 size={22} />
+                      </div>
+                      <h2 className="text-2xl font-bold leading-tight text-zinc-100">{supplier.supplier.business_name}</h2>
+                      <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-zinc-400">
+                        <span className="inline-flex items-center gap-1.5"><Globe size={13} />{supplier.supplier.country}</span>
+                        <span className={cn("inline-flex items-center gap-1.5", supplier.supplier.cert_type === "digital" && "font-semibold text-[color:var(--brand-teal)]")}>
+                          <BadgeCheck size={13} />
+                          {getCertTypeLabel(supplier.supplier.cert_type)}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="shrink-0 rounded-lg bg-[color:var(--card)] px-4 py-3 text-center shadow-sm">
+                      <div className="text-3xl font-bold text-zinc-100">{supplier.profile.trustScore}</div>
+                      <div className="text-xs font-semibold text-zinc-500">Trust Score</div>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <div className="text-3xl font-bold text-zinc-100">{supplier.profile.trustScore}</div>
-                    <div className="text-xs text-zinc-500">Trust Score</div>
+                  <p className="mt-4 text-sm leading-6 text-zinc-500">{supplier.supplier.business_summary ?? "Business summary unavailable."}</p>
+                  <div className="mt-4 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+                    <div>
+                      <p className="font-semibold text-zinc-100">{supplier.match.matchScore}%</p>
+                      <p className="text-zinc-500">Match</p>
+                    </div>
+                    <div>
+                      <p className="font-semibold text-zinc-100">{supplier.profile.riskLevel}</p>
+                      <p className="text-zinc-500">Risk</p>
+                    </div>
+                    <div>
+                      <p className="font-semibold text-zinc-100">{supplier.supplier.cert_status}</p>
+                      <p className="text-zinc-500">Status</p>
+                    </div>
+                    <div>
+                      <p className="font-semibold text-zinc-100">{supplier.profile.lastVerified || "N/A"}</p>
+                      <p className="text-zinc-500">Verified</p>
+                    </div>
                   </div>
                 </div>
 
-                <p className="rounded-lg border border-cyan-500/25 bg-cyan-500/10 px-3 py-2 text-xs text-cyan-100">{trustLevelLabel(supplier.profile.trustLevel)}</p>
-                <p className="text-xs text-zinc-400">Match Score: <span className="font-semibold text-zinc-200">{supplier.match.matchScore}%</span> · {supplier.match.rankReason}</p>
-                <p className="text-xs text-zinc-500">{supplier.supplier.business_summary ?? "Business summary unavailable."}</p>
-                <p className="text-xs text-zinc-400">{supplier.supplier.clients_worked_with ?? "Worked with 5 clients (mock)"}</p>
-                <div className="rounded-xl border border-zinc-700 bg-zinc-800 p-3 text-xs text-zinc-300">
-                  <p className="font-semibold text-zinc-100">Full Details</p>
-                  <p className="mt-1">Industry (NAICS): {supplier.supplier.industry_codes.join(", ") || "N/A"}</p>
-                  <p>Category (UNSPSC): {supplier.supplier.category_codes.join(", ") || "N/A"}</p>
-                  <p>Women-owned: {supplier.supplier.women_owned ? "Yes" : "No"}</p>
-                  <p>Blockchain verified: {supplier.supplier.blockchain_verified ? "Yes" : "No"}</p>
+                <button
+                  type="button"
+                  onClick={runStartChat}
+                  disabled={actionLoading !== null}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-[color:var(--brand-teal)] px-4 py-3 text-sm font-bold text-white shadow-sm transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <MessageCircle size={18} />
+                  Chat with seller
+                </button>
+
+                {chatOpen && (
+                  <div className="rounded-lg border border-[color:var(--border)] bg-[color:var(--card-muted)] p-4">
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <div>
+                        <p className="flex items-center gap-2 text-sm font-bold text-zinc-100">
+                          <MessageCircle size={15} className="text-[color:var(--brand-teal)]" /> Seller chat
+                        </p>
+                        <p className="mt-0.5 text-xs text-zinc-500">Demo conversation with {supplier.supplier.business_name}</p>
+                      </div>
+                      <span className="rounded-full bg-[color:var(--card)] px-2.5 py-1 text-[11px] font-bold text-[color:var(--brand-teal)]">
+                        Online
+                      </span>
+                    </div>
+                    <div className="max-h-72 space-y-3 overflow-y-auto pr-1">
+                      {selectedChatMessages.map((message) => (
+                        <div
+                          key={message.id}
+                          className={cn(
+                            "max-w-[88%] rounded-lg border px-3 py-2 text-xs leading-5",
+                            message.author === "buyer"
+                              ? "ml-auto border-[color:var(--brand-teal)] bg-[color:var(--brand-teal)] text-white"
+                              : "border-[color:var(--border)] bg-[color:var(--card)] text-zinc-400",
+                          )}
+                        >
+                          <p className="font-semibold">{message.author === "buyer" ? "You" : supplier.supplier.business_name}</p>
+                          <p className="mt-1">{message.body}</p>
+                          <p className={cn("mt-1 text-[10px]", message.author === "buyer" ? "text-white/75" : "text-zinc-500")}>
+                            {message.timestamp}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                    <form
+                      className="mt-3 flex gap-2"
+                      onSubmit={(event) => {
+                        event.preventDefault();
+                        sendChatMessage();
+                      }}
+                    >
+                      <input
+                        className="min-h-10 flex-1 rounded-md border border-[color:var(--border)] bg-[color:var(--card)] px-3 text-sm text-zinc-100 placeholder:text-zinc-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring-soft)]"
+                        placeholder="Type a message to the seller"
+                        value={chatDraft}
+                        onChange={(event) => setChatDraft(event.target.value)}
+                      />
+                      <button
+                        type="submit"
+                        className="inline-flex min-h-10 w-11 items-center justify-center rounded-md bg-[color:var(--brand-plum)] text-white transition-colors hover:brightness-110"
+                        aria-label="Send message"
+                      >
+                        <Send size={16} />
+                      </button>
+                    </form>
+                  </div>
+                )}
+
+                <div className="rounded-lg border border-[color:var(--border)] p-4">
+                  <p className="mb-3 flex items-center gap-2 text-sm font-bold text-zinc-100">
+                    <BriefcaseBusiness size={15} className="text-[color:var(--brand-teal)]" /> Organization details
+                  </p>
+                  <div className="space-y-2 text-xs leading-5 text-zinc-400">
+                    <p><span className="font-semibold text-zinc-100">Industry (NAICS):</span> {formatCodeLabels(supplier.supplier.industry_codes, naicsLabelByCode).join(", ") || "N/A"}</p>
+                    <p><span className="font-semibold text-zinc-100">Category (UNSPSC):</span> {formatCodeLabels(supplier.supplier.category_codes, unspscLabelByCode).join(", ") || "N/A"}</p>
+                    <p><span className="font-semibold text-zinc-100">Ownership:</span> {supplier.supplier.women_owned ? "Women-owned / women-led" : "Ownership data available"}</p>
+                    <p><span className="font-semibold text-zinc-100">Blockchain verified:</span> {supplier.supplier.blockchain_verified ? "Yes" : "No"}</p>
+                    <p><span className="font-semibold text-zinc-100">Buyer activity:</span> {supplier.supplier.clients_worked_with ?? "Worked with 5 clients (mock)"}</p>
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-[color:var(--border)] p-4">
+                  <p className="mb-3 flex items-center gap-2 text-sm font-bold text-zinc-100">
+                    <Globe size={15} className="text-[color:var(--brand-teal)]" /> Seller social presence
+                  </p>
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    {supplierSocialAccounts.map((account) => (
+                      <a
+                        key={account.label}
+                        href={account.href}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="rounded-md border border-[color:var(--border)] bg-[color:var(--card-muted)] px-3 py-2 text-xs transition-colors hover:border-[color:var(--border-strong)] hover:bg-[color:var(--card)]"
+                      >
+                        <span className="flex items-center justify-between gap-2 font-bold text-zinc-100">
+                          {account.label}
+                          <ExternalLink size={12} />
+                        </span>
+                        <span className="mt-1 block truncate text-zinc-500">{account.handle}</span>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-[color:var(--border)] p-4">
+                  <p className="mb-3 flex items-center gap-2 text-sm font-bold text-zinc-100">
+                    <Sparkles size={15} className="text-[color:var(--brand-teal)]" /> Recent seller posts
+                  </p>
+                  <div className="space-y-3">
+                    {supplierSocialPosts.map((post) => (
+                      <article key={post.id} className="rounded-md border border-[color:var(--border)] bg-[color:var(--card-muted)] p-3">
+                        <div className="mb-2 flex items-center justify-between gap-3 text-[11px]">
+                          <span className="font-bold text-[color:var(--brand-teal)]">{post.channel}</span>
+                          <span className="text-zinc-500">{post.postedAt}</span>
+                        </div>
+                        <p className="text-xs leading-5 text-zinc-400">{post.body}</p>
+                        <p className="mt-2 text-[11px] font-semibold text-zinc-500">{post.metric}</p>
+                      </article>
+                    ))}
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   {[
-                    { label: "Certification", value: getCertTypeLabel(supplier.supplier.cert_type) },
+                    { label: "Certification", value: getCertTypeLabel(supplier.supplier.cert_type), verified: supplier.supplier.cert_type === "digital" },
                     { label: "Status", value: supplier.supplier.cert_status },
                     { label: "Risk Level", value: supplier.profile.riskLevel },
                     { label: "Last Verified", value: supplier.profile.lastVerified || "N/A" },
                   ].map((row) => (
-                    <div key={row.label} className="rounded-xl border border-zinc-700 bg-zinc-800 p-3">
+                    <div key={row.label} className="rounded-lg border border-[color:var(--border)] bg-[color:var(--card-muted)] p-3">
                       <p className="text-xs text-zinc-400">{row.label}</p>
-                      <p className="mt-0.5 text-sm font-bold text-zinc-100">{row.value}</p>
+                      <p className="mt-0.5 flex items-center gap-1.5 text-sm font-bold text-zinc-100">
+                        {row.verified ? <BadgeCheck size={14} className="text-[color:var(--brand-teal)]" /> : null}
+                        {row.value}
+                      </p>
                     </div>
                   ))}
                 </div>
 
-                <div>
+                <div className="rounded-lg border border-[color:var(--border)] p-4">
+                  <p className="mb-3 flex items-center gap-2 text-sm font-bold text-zinc-100">
+                    <Users size={15} className="text-[color:var(--brand-teal)]" /> Past buys and social context
+                  </p>
+                  <div className="grid grid-cols-2 gap-3 text-xs">
+                    <div>
+                      <p className="text-lg font-bold text-zinc-100">{selectedBuyerContext?.recentBuys}</p>
+                      <p className="text-zinc-500">Recent buyer engagements</p>
+                    </div>
+                    <div>
+                      <p className="text-lg font-bold text-zinc-100">{selectedBuyerContext?.repeatRate}%</p>
+                      <p className="text-zinc-500">Repeat-interest signal</p>
+                    </div>
+                  </div>
+                  <p className="mt-3 text-xs leading-5 text-zinc-400">
+                    Similar {selectedBuyerContext?.segment.toLowerCase()} engaged this seller. {selectedBuyerContext?.leadTime}.
+                  </p>
+                </div>
+
+                {similarSuppliers.length > 0 && (
+                  <div className="rounded-lg border border-[color:var(--border)] p-4">
+                    <p className="mb-3 flex items-center gap-2 text-sm font-bold text-zinc-100">
+                      <TrendingUp size={15} className="text-[color:var(--brand-teal)]" /> Similar buyers also viewed
+                    </p>
+                    <div className="space-y-2">
+                      {similarSuppliers.map((row) => (
+                        <button
+                          key={row.supplier.id}
+                          type="button"
+                          onClick={() => setSelected(row.supplier.id)}
+                          className="flex w-full items-center justify-between gap-3 rounded-md border border-[color:var(--border)] px-3 py-2 text-left transition-colors hover:border-[color:var(--border-strong)] hover:bg-[color:var(--card-muted)]"
+                        >
+                          <span>
+                            <span className="block text-xs font-semibold text-zinc-100">{row.supplier.business_name}</span>
+                            <span className="text-[11px] text-zinc-500">{row.supplier.country}</span>
+                          </span>
+                          <span className="text-xs font-bold text-[color:var(--brand-teal)]">{row.match.matchScore}%</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="rounded-lg border border-[color:var(--border)] p-4">
+                  <p className="mb-3 flex items-center gap-2 text-sm font-bold text-zinc-100">
+                    <Tags size={15} className="text-[color:var(--brand-teal)]" /> Generated relevant keywords
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {supplierKeywords.map((keyword) => (
+                      <span key={keyword} className="inline-flex items-center rounded-full border border-[color:var(--border)] bg-[color:var(--card-muted)] px-2.5 py-1 text-xs font-semibold text-zinc-300">
+                        {keyword}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-[color:var(--border)] p-4">
                   <p className="mb-2 text-xs font-semibold text-zinc-300">Designations</p>
                   <div className="flex flex-wrap gap-1.5">
                     {supplier.supplier.designations.map((d) => (
-                      <span key={d} className="inline-flex items-center rounded-full border border-zinc-700 bg-zinc-800 px-2.5 py-0.5 text-xs font-semibold text-zinc-300">{d}</span>
+                      <span key={d} className="inline-flex items-center rounded-full border border-[color:var(--border)] bg-[color:var(--card-muted)] px-2.5 py-0.5 text-xs font-semibold text-zinc-300">{d}</span>
                     ))}
                   </div>
                 </div>
                 {supplier.profile.verificationSummary && (
-                  <div className="rounded-xl border border-zinc-700 bg-zinc-800 p-3 text-xs text-zinc-300">
-                    <p className="font-semibold text-zinc-100">Verification summary</p>
-                    <p>Sanctions: {supplier.profile.verificationSummary.sanctionsCheck}</p>
-                    <p>Entity: {supplier.profile.verificationSummary.entityVerification}</p>
-                    <p>Identity match: {supplier.profile.verificationSummary.identityMatch}</p>
-                    <p>Document consistency: {supplier.profile.verificationSummary.documentConsistency}</p>
+                  <div className="rounded-lg border border-[color:var(--border)] p-4 text-xs text-zinc-300">
+                    <p className="mb-2 font-semibold text-zinc-100">Verification summary</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <p>Sanctions: {supplier.profile.verificationSummary.sanctionsCheck}</p>
+                      <p>Entity: {supplier.profile.verificationSummary.entityVerification}</p>
+                      <p>Identity match: {supplier.profile.verificationSummary.identityMatch}</p>
+                      <p>Document consistency: {supplier.profile.verificationSummary.documentConsistency}</p>
+                    </div>
                   </div>
                 )}
-                <div className="rounded-xl border border-zinc-700 bg-zinc-800 p-3 text-xs text-zinc-300">
-                  <p className="font-semibold text-zinc-100">Trust report</p>
+                <div className="rounded-lg border border-[color:var(--border)] p-4 text-xs text-zinc-300">
+                  <p className="mb-2 flex items-center gap-2 font-semibold text-zinc-100"><Shield size={14} /> Trust report</p>
                   <p>Trust score: {supplier.profile.trustScore}</p>
                   <p>Risk level: {supplier.profile.riskLevel}</p>
                   <p>Trust level: {trustLevelLabel(supplier.profile.trustLevel)}</p>
                   <p>Last verified: {supplier.profile.lastVerified || "N/A"}</p>
+                  <p className="mt-2 text-zinc-400">{supplier.match.rankReason}</p>
                 </div>
 
                 <div className="flex flex-col sm:flex-row gap-2">
@@ -495,15 +974,6 @@ export default function BuyerPortalPage() {
                 >
                   <Shield size={13} />
                   {actionLoading === "audit" ? "Generating report..." : "Request Audit Report"}
-                </button>
-                  <button
-                    type="button"
-                    onClick={() => {}}
-                    disabled={actionLoading !== null}
-                    className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-zinc-700 px-4 py-2 text-sm font-medium transition-colors hover:bg-zinc-800 hover:text-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                  <MessageCircle size={18} />
-                  Start Chat
                 </button>
                 </div>
                 {actionMessage ? (

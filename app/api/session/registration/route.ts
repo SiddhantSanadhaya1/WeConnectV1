@@ -47,7 +47,11 @@ export async function POST(req: Request) {
           normalizedRegistration.cert_type === "digital" ? "digital_verification" : "self_certification",
       });
     }
-    if (normalizedRegistration.cert_type === "self" && normalizedRegistration.business_name.trim()) {
+    if (
+      (normalizedRegistration.cert_type === "self" || normalizedRegistration.cert_type === "digital") &&
+      normalizedRegistration.business_name.trim()
+    ) {
+      const digital = normalizedRegistration.cert_type === "digital";
       upsertCatalogSupplier({
         id: `draft-${sessionId}`,
         business_name: normalizedRegistration.business_name,
@@ -57,20 +61,22 @@ export async function POST(req: Request) {
         designations: normalizedRegistration.designations.length
           ? normalizedRegistration.designations
           : ["Women-Owned"],
-        cert_type: "self",
+        cert_type: normalizedRegistration.cert_type,
         cert_status: "pending",
-        trust_score: 68,
+        trust_score: digital ? 82 : 68,
         blockchain_verified: false,
         women_owned: Boolean(normalizedRegistration.women_owned),
         last_verified: new Date().toISOString().slice(0, 10),
         business_summary:
           normalizedRegistration.business_description ||
-          `${normalizedRegistration.business_name} is completing self-certification checks.`,
+          `${normalizedRegistration.business_name} is completing ${digital ? "digital certification review" : "self-certification checks"}.`,
         clients_worked_with: "Worked with 3 clients (self-reported mock)",
       });
       pushGovernanceNotification(
         sessionId,
-        "Self-certification profile synced to buyer marketplace (pending)",
+        digital
+          ? "Digital certification request synced to admin review queue (pending)"
+          : "Self-certification profile synced to buyer marketplace (pending)",
       );
     }
   }

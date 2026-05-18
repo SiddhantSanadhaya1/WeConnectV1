@@ -112,6 +112,10 @@ export function upsertCatalogSupplier(supplier: CatalogSupplier): CatalogSupplie
   return supplier;
 }
 
+export function removeCatalogSupplier(id: string): boolean {
+  return catalog.delete(id);
+}
+
 export function upsertCertifiedSupplierFromSession(input: {
   id: string;
   businessName: string;

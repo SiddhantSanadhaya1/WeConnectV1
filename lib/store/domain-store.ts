@@ -75,6 +75,10 @@ export function getDomainState(sessionId: string): DomainState {
   return created;
 }
 
+export function deleteDomainState(sessionId: string): boolean {
+  return domainState.delete(sessionId);
+}
+
 export function patchDomainState(sessionId: string, patch: Partial<DomainState>): DomainState {
   const current = getDomainState(sessionId);
   const next: DomainState = {

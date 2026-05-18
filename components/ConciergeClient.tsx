@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useState, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { emptyRegistrationDraft, validateRegistration } from "@/lib/registration";
 import { type CertificationType, type ComplianceResult, type TrustReport } from "@/lib/domains/contracts";
 import { getTranslations, getLanguageMetadata, type Language } from "@/lib/i18n";
+import type { CertDisplay } from "@/components/CertificateCard";
 import { BlockAnchorAnimation } from "./BlockAnchorAnimation";
 
 // Concierge sub-components
@@ -13,7 +14,6 @@ import { IntakeSection } from "./concierge/IntakeSection";
 import { StepperUI } from "./concierge/StepperUI";
 import { RegistrationReview } from "./concierge/RegistrationReview";
 import { VerificationDisplay } from "./concierge/VerificationDisplay";
-import { SelfVerificationAdvanced } from "./concierge/SelfVerificationAdvanced";
 import { CertificateDisplay } from "./concierge/CertificateDisplay";
 import { UpgradePortal } from "./concierge/UpgradePortal";
 
@@ -26,7 +26,7 @@ import { useVerification } from "./concierge/useVerification";
 import { useAgent } from "./concierge/useAgent";
 import { useAnchoring } from "./concierge/useAnchoring";
 import { useReports } from "./concierge/useReports";
-import { useBuyerFlow } from "./concierge/useBuyerFlow";
+import { humanizeMissingField } from "./concierge/utils";
 
 import { 
   GeminiFallbackReason, 
@@ -35,8 +35,11 @@ import {
   AiAssessmentReport,
   Match,
   OwnershipSummary,
-  OwnershipBreakdown
+  OwnershipBreakdown,
+  DiscoverJson
 } from "./concierge/types";
+
+type DisplayCertificate = CertDisplay & { revoked?: boolean };
 
 export function ConciergeClient({ embed, language = "en" }: { embed?: boolean; language?: Language }) {
   const translations = getTranslations(language);
@@ -47,7 +50,7 @@ export function ConciergeClient({ embed, language = "en" }: { embed?: boolean; l
   const [stage, setStage] = useState<string>("idle");
   const [assistant, setAssistant] = useState<string>("");
   const [badge, setBadge] = useState<string | null>(null);
-  const [cert, setCert] = useState<any>(null);
+  const [cert, setCert] = useState<DisplayCertificate | null>(null);
   const [quotaFallbackNotice, setQuotaFallbackNotice] = useState(false);
   const [quotaFallbackReason, setQuotaFallbackReason] = useState<GeminiFallbackReason | null>(null);
   const [quotaFallbackSubtype, setQuotaFallbackSubtype] = useState<GeminiQuotaSubtype | null>(null);
@@ -55,10 +58,10 @@ export function ConciergeClient({ embed, language = "en" }: { embed?: boolean; l
   const [paid, setPaid] = useState(false);
   const [visionChecks, setVisionChecks] = useState<{ idPassed?: boolean }>({});
   const [workflow, setWorkflow] = useState<WorkflowState | null>(null);
-  const [aiAssessmentReport, setAiAssessmentReport] = useState<AiAssessmentReport | null>(null);
-  const [compliance, setCompliance] = useState<ComplianceResult | null>(null);
-  const [trustReport, setTrustReport] = useState<TrustReport | null>(null);
-  const [questionnaireAnswers, setQuestionnaireAnswers] = useState<Record<string, string>>({
+  const [, setAiAssessmentReport] = useState<AiAssessmentReport | null>(null);
+  const [, setCompliance] = useState<ComplianceResult | null>(null);
+  const [, setTrustReport] = useState<TrustReport | null>(null);
+  const [, setQuestionnaireAnswers] = useState<Record<string, string>>({
     ownership_control: "",
     operational_involvement: "",
     years_in_business: "",
@@ -68,7 +71,6 @@ export function ConciergeClient({ embed, language = "en" }: { embed?: boolean; l
   const [cardNumber, setCardNumber] = useState("");
   const [cardExpiry, setCardExpiry] = useState("");
   const [cardCvv, setCardCvv] = useState("");
-  const [showAdvanced, setShowAdvanced] = useState(false);
   const [audioEnabled, setAudioEnabled] = useState(true);
   const [manualFlowStep, setManualFlowStep] = useState<number | null>(null);
 
@@ -76,7 +78,7 @@ export function ConciergeClient({ embed, language = "en" }: { embed?: boolean; l
   const [match, setMatch] = useState<Match | null>(null);
   const [fieldConfidence, setFieldConfidence] = useState<Partial<Record<string, number>>>({});
   const [fieldEvidence, setFieldEvidence] = useState<Partial<Record<string, string>>>({});
-  const [discoverCandidates, setDiscoverCandidates] = useState<any[]>([]);
+  const [discoverCandidates, setDiscoverCandidates] = useState<NonNullable<DiscoverJson["candidates"]>>([]);
   const [selectedCandidateIndex, setSelectedCandidateIndex] = useState(0);
   const [needsCandidateConfirmation, setNeedsCandidateConfirmation] = useState(false);
   const [countryConfirmed, setCountryConfirmed] = useState(true);
@@ -85,10 +87,10 @@ export function ConciergeClient({ embed, language = "en" }: { embed?: boolean; l
   const [ownership, setOwnership] = useState<OwnershipSummary | null>(null);
   const [ownershipBreakdown, setOwnershipBreakdown] = useState<OwnershipBreakdown | null>(null);
   const [founderNames, setFounderNames] = useState<string[]>([]);
-  const [classificationSummary, setClassificationSummary] = useState<any>(undefined);
+  const [, setClassificationSummary] = useState<DiscoverJson["classificationSummary"] | undefined>(undefined);
 
   // --- Hooks ---
-  const { speak: speakWithLanguage, stop: stopAudio } = useSpeechSynthesis(langMeta.langCode, audioEnabled);
+  const { speak: speakWithLanguage } = useSpeechSynthesis(langMeta.langCode, audioEnabled);
 
   const { sessionId, saveRegistration, refreshSession } = useConciergeSession(
     match,
@@ -104,7 +106,7 @@ export function ConciergeClient({ embed, language = "en" }: { embed?: boolean; l
     setQuestionnaireAnswers
   );
 
-  const { setCertificationType, saveQuestionnaire, runCompliance, createTrustReport } = useConciergeWorkflow(
+  const { setCertificationType, runCompliance, createTrustReport } = useConciergeWorkflow(
     sessionId, setWorkflow, setCompliance, setTrustReport, setAssistant, setBadge, setRegistration
   );
 
@@ -127,7 +129,7 @@ export function ConciergeClient({ embed, language = "en" }: { embed?: boolean; l
 
   const verification = useVerification(
     sessionId, setAssistant, speakWithLanguage, setBadge, refreshSession, setStage, 
-    workflow?.certificationType === "self",
+    workflow?.certificationType === "self" || registration.cert_type === "self",
     runCompliance, createTrustReport
   );
 
@@ -142,19 +144,20 @@ export function ConciergeClient({ embed, language = "en" }: { embed?: boolean; l
 
   const reports = useReports(sessionId, cert, setAssistant);
 
-  const buyerFlow = useBuyerFlow(translations.intake.description, setAssistant);
-
   // --- Derived State ---
+  const registrationCertType: CertificationType =
+    registration.cert_type === "self" || registration.cert_type === "digital" ? registration.cert_type : "none";
   const activeCertType: CertificationType = workflow?.certificationType && workflow.certificationType !== "none"
     ? workflow.certificationType
-    : ((registration.cert_type as CertificationType | undefined) ?? "none");
+    : registrationCertType;
   const isDigitalPath = activeCertType === "digital";
   const isSelfPath = activeCertType === "self";
+  const requiresIdentityCheck = isSelfPath || isDigitalPath;
   
-  const registrationCheck = validateRegistration(registration, isDigitalPath ? paid : true);
+  const registrationCheck = validateRegistration(registration, true);
   const readinessBlockers = [
     ...registrationCheck.missingRequired,
-    ...(isDigitalPath && !visionChecks.idPassed ? ["vision_id"] : []),
+    ...(requiresIdentityCheck && !visionChecks.idPassed ? ["vision_id"] : []),
   ];
   const countryConfirmationBlockers = countryRequiresConfirmation && !countryConfirmed ? ["country_confirmation"] : [];
   const mergedBlockers = Array.from(new Set([...readinessBlockers, ...countryConfirmationBlockers, ...anchorBlockers]));
@@ -162,34 +165,57 @@ export function ConciergeClient({ embed, language = "en" }: { embed?: boolean; l
 
   const mockCardValid = cardNumber.replace(/\s+/g, "").length >= 12 && cardExpiry.trim().length >= 4 && cardCvv.length >= 3;
 
-  const flowSteps = ["Intake", "Confirm", "Upload", "Verification", "Certificate", "Digital Upgrade"] as const;
+  const flowSteps = ["Seller Registration", "Self Verification", "Digital Certification"] as const;
+  const savedRegistrationMatch = useMemo<Match | null>(() => {
+    if (!registration.business_name.trim()) return null;
+    const ownerTotal = registration.owner_details.reduce((sum, owner) => sum + (owner.ownershipPct || 0), 0);
+    return {
+      id: `saved-${sessionId ?? registration.business_name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+      companyName: registration.business_name,
+      jurisdiction: registration.country || "Saved seller profile",
+      registrySnippet: registration.business_description || "Loaded from saved seller registration.",
+      primaryOwner: registration.owner_details.map((owner) => owner.fullName).filter(Boolean).join(", ") || "Not provided",
+      ownershipFemalePct: registration.women_owned ? (ownerTotal || 100) : ownerTotal || null,
+      ownerPrefillPct: ownerTotal || null,
+    };
+  }, [registration, sessionId]);
+  const effectiveMatch = match ?? savedRegistrationMatch;
   
   const computedFlowStep = useMemo(() => {
-    if (stage === "complete" && activeCertType === "digital") return 5;
-    if (cert || stage === "complete") return 4;
-    if (stage === "anchoring") return 4;
-    if (!match) return 0;
+    if (!effectiveMatch) return 0;
     if (
       needsCandidateConfirmation ||
       !registration.country.trim() ||
       (countryRequiresConfirmation && !countryConfirmed) ||
-      stage === "discovered"
+      stage === "discovered" ||
+      stage === "voice_confirm" ||
+      stage === "idle"
     ) {
-      return 1;
+      return 0;
     }
-    if (stage === "doc_upload" && !compliance) return 2;
-    if (compliance && !trustReport) return 3;
-    if (trustReport && !cert) return 3;
-    if (isDigitalPath) return 5;
-    return 2;
-  }, [stage, activeCertType, cert, match, needsCandidateConfirmation, registration.country, countryRequiresConfirmation, countryConfirmed, compliance, trustReport, isDigitalPath]);
+    if (activeCertType === "digital" && paid && cert) return 2;
+    return 1;
+  }, [stage, activeCertType, paid, cert, effectiveMatch, needsCandidateConfirmation, registration.country, countryRequiresConfirmation, countryConfirmed]);
 
   const currentFlowStep = manualFlowStep ?? computedFlowStep;
 
   // --- Actions ---
-  const startVerification = async () => {
+  const resetRegistration = async () => {
+    setManualFlowStep(null);
+    setMatch(null);
+    setCert(null);
+    setRegistration(emptyRegistrationDraft());
+    setNeedsCandidateConfirmation(false);
+    setCountryConfirmed(true);
+    setCountryRequiresConfirmation(false);
+    setPaid(false);
+    setStage("idle");
+    await setCertificationType("none");
+  };
+
+  const confirmRegistration = async () => {
     if (needsCandidateConfirmation) {
-      const msg = "Please select the best web candidate and click 'Use selected candidate' before starting verification.";
+      const msg = "Please select the best web candidate and click 'Use selected candidate' before confirming registration.";
       setAssistant(msg);
       speakWithLanguage(msg);
       return;
@@ -206,29 +232,33 @@ export function ConciergeClient({ embed, language = "en" }: { embed?: boolean; l
       speakWithLanguage(msg);
       return;
     }
-    
-    let currentCertType = activeCertType;
-    if (currentCertType === "none") {
-      void setCertificationType("self");
-      currentCertType = "self";
-    }
-    
-    if (currentCertType === "self") {
-      const msg = "Self-Certified path selected. Please upload your business registration documents to continue.";
-      setStage("doc_upload");
+
+    const check = validateRegistration(registration, true);
+    if (check.missingRequired.length) {
+      const missing = check.missingRequired.slice(0, 5).map(humanizeMissingField).join(", ");
+      const msg = `Please complete registration details before self verification: ${missing}.`;
       setAssistant(msg);
-      if (sessionId) {
-        await fetch("/api/session", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sessionId, stage: "doc_upload" }),
-        });
-      }
       speakWithLanguage(msg);
       return;
     }
-    await saveRegistration(registration, paid);
-    await callAgent();
+
+    const nextRegistration = { ...registration, cert_type: "self" };
+    setRegistration(nextRegistration);
+    setPaid(false);
+    await saveRegistration(nextRegistration, false);
+    await setCertificationType("self");
+    setStage("doc_upload");
+    setManualFlowStep(1);
+    if (sessionId) {
+      await fetch("/api/session", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId, stage: "doc_upload" }),
+      });
+    }
+    const msg = "Seller registration confirmed. Please upload supporting documents to begin self verification.";
+    setAssistant(msg);
+    speakWithLanguage(msg);
   };
 
   const onVoice = async (text: string) => {
@@ -244,10 +274,21 @@ export function ConciergeClient({ embed, language = "en" }: { embed?: boolean; l
       alert("Please fill all fields and enter valid card details.");
       return;
     }
+    const nextRegistration = { ...registration, cert_type: "digital" };
+    setRegistration(nextRegistration);
     setPaid(true);
+    await saveRegistration(nextRegistration, true);
     await setCertificationType("digital");
+    if (sessionId) {
+      await fetch("/api/workflow/transition", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId, action: "payment_transition", paymentState: "hold_placed" }),
+      });
+    }
     setStage("complete");
-    const msg = "Digital certification request submitted. We will verify your details within 72 hours.";
+    setManualFlowStep(2);
+    const msg = "Digital certification request submitted. We will verify your details and authenticity within 72 hours. If rejected, the payment hold will be refunded.";
     setAssistant(msg);
     speakWithLanguage(msg);
   };
@@ -272,7 +313,7 @@ export function ConciergeClient({ embed, language = "en" }: { embed?: boolean; l
         />
 
         <IntakeSection 
-          show={currentFlowStep === 0}
+          show={currentFlowStep === 0 && !effectiveMatch}
           query={query}
           setQuery={setQuery}
           onDiscover={() => runDiscover()}
@@ -282,47 +323,21 @@ export function ConciergeClient({ embed, language = "en" }: { embed?: boolean; l
         <StepperUI 
           flowSteps={flowSteps}
           currentFlowStep={currentFlowStep}
-          match={match}
+          match={effectiveMatch}
           activeCertType={activeCertType}
-          setCertificationType={setCertificationType}
-          setMatch={setMatch}
-          setRegistration={setRegistration}
-          setStage={setStage}
-          setNeedsCandidateConfirmation={setNeedsCandidateConfirmation}
-          setCountryConfirmed={setCountryConfirmed}
-          setPaid={setPaid}
+          registrationComplete={Boolean(effectiveMatch) && currentFlowStep > 0}
+          selfVerificationComplete={Boolean(cert)}
+          visionIdPassed={Boolean(visionChecks.idPassed)}
           setManualFlowStep={setManualFlowStep}
-          compliance={compliance}
-          trustReport={trustReport}
-          runCompliance={runCompliance}
-          createTrustReport={createTrustReport}
-          startVerification={startVerification}
+          resetRegistration={resetRegistration}
+          confirmRegistration={confirmRegistration}
           stage={stage}
           cert={cert}
         />
 
-        <SelfVerificationAdvanced 
-          show={(currentFlowStep === 3) || (isSelfPath && currentFlowStep === 3)}
-          workflow={workflow}
-          showAdvanced={showAdvanced}
-          setShowAdvanced={setShowAdvanced}
-          isSelfPath={isSelfPath}
-          registration={registration}
-          setRegistration={setRegistration}
-          setCertificationType={setCertificationType}
-          questionnaireAnswers={questionnaireAnswers}
-          setQuestionnaireAnswers={setQuestionnaireAnswers}
-          saveQuestionnaire={() => saveQuestionnaire(questionnaireAnswers)}
-          runCompliance={runCompliance}
-          createTrustReport={createTrustReport}
-          compliance={compliance}
-          trustReport={trustReport}
-          currentFlowStep={currentFlowStep}
-        />
-
         <RegistrationReview 
-          show={currentFlowStep === 1}
-          match={match}
+          show={currentFlowStep === 0}
+          match={effectiveMatch}
           registration={registration}
           setRegistration={setRegistration}
           fieldConfidence={fieldConfidence}
@@ -343,10 +358,11 @@ export function ConciergeClient({ embed, language = "en" }: { embed?: boolean; l
           mergedBlockers={mergedBlockers}
           anchorFailureReason={anchorFailureReason}
           anchorOperatorHint={anchorOperatorHint}
+          onConfirmRegistration={confirmRegistration}
         />
 
         <VerificationDisplay 
-          show={currentFlowStep === 2 || (currentFlowStep === 3 && !compliance)}
+          show={currentFlowStep === 1 && !cert && stage !== "anchoring"}
           stage={stage}
           assistant={assistant}
           badge={badge}
@@ -354,7 +370,7 @@ export function ConciergeClient({ embed, language = "en" }: { embed?: boolean; l
           visionWarning={verification.visionWarning}
           visionBlockers={verification.visionBlockers}
           sessionId={sessionId}
-          match={match}
+          match={effectiveMatch}
           onVoice={onVoice}
           selectedDocuments={verification.selectedDocuments}
           setSelectedDocuments={verification.setSelectedDocuments}
@@ -364,11 +380,10 @@ export function ConciergeClient({ embed, language = "en" }: { embed?: boolean; l
           videoProgress={verification.videoProgress}
           scanning={verification.scanning}
           sendVision={verification.sendVision}
-          currentFlowStep={currentFlowStep}
         />
 
         <CertificateDisplay 
-          show={currentFlowStep === 4}
+          show={currentFlowStep === 1 && (Boolean(cert) || stage === "voice_attestation" || stage === "anchoring")}
           cert={cert}
           verifyUrl={typeof window !== "undefined" && cert ? `${window.location.origin}/verify/${cert.id}` : ""}
           downloadCertificatePdf={reports.downloadCertificatePdf}
@@ -383,7 +398,7 @@ export function ConciergeClient({ embed, language = "en" }: { embed?: boolean; l
         />
 
         <UpgradePortal 
-          show={currentFlowStep === 5 && cert}
+          show={currentFlowStep === 2 && Boolean(cert)}
           cert={cert}
           verifyUrl={typeof window !== "undefined" && cert ? `${window.location.origin}/verify/${cert.id}` : ""}
           registration={registration}
@@ -395,6 +410,7 @@ export function ConciergeClient({ embed, language = "en" }: { embed?: boolean; l
           cardCvv={cardCvv}
           setCardCvv={setCardCvv}
           mockCardValid={mockCardValid}
+          paid={paid}
           onUpgrade={onUpgrade}
         />
       </main>

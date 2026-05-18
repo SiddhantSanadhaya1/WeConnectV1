@@ -122,12 +122,18 @@ export function useVerification(
     );
     if (j.stage === "voice_attestation") {
       setVisionNote("ID video verified. Ownership remains prefill-derived and not vision-verified.");
-      const prompt = "ID verification complete. Please proceed to the payment gate to continue.";
+      if (isSelfPath) {
+        await runCompliance();
+        await createTrustReport();
+      }
+      const prompt = isSelfPath
+        ? "ID verification complete. Your self verification is ready for blockchain certificate issuance."
+        : "ID verification complete. Please proceed to the next verification step.";
       setAssistant(prompt);
       speakWithLanguage(prompt);
     }
     return j;
-  }, [sessionId, setAssistant, speakWithLanguage, setBadge, refreshSession, setStage, runProgressSteps]);
+  }, [sessionId, setAssistant, speakWithLanguage, setBadge, refreshSession, setStage, runProgressSteps, isSelfPath, runCompliance, createTrustReport]);
 
   const verifyDocuments = useCallback(async (files: File[]) => {
     if (!sessionId || !files.length) return;
@@ -160,34 +166,20 @@ export function useVerification(
       const { ok, data } = await parseJsonSafe<{ result: { verified: boolean; confidence: number; report: string } }>(res);
       if (ok && data?.result) {
         if (data.result.verified) {
-          if (isSelfPath) {
-            await runCompliance();
-            await createTrustReport();
-            const message = "Self-certification document upload complete. Compliance and trust report are ready. You can issue the certificate.";
-            setAssistant(message);
-            speakWithLanguage(message);
-          } else {
-            const message = "Documents verified. Please proceed to ID video verification.";
-            setStage("vision_id");
-            setAssistant(message);
-            speakWithLanguage(message);
-            await fetch("/api/session", {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ sessionId, stage: "vision_id" }),
-            });
-            await refreshSession(sessionId);
-          }
+          const message = "Documents verified. Please show a valid ID in the webcam to complete self verification.";
+          setStage("vision_id");
+          setAssistant(message);
+          speakWithLanguage(message);
+          await fetch("/api/session", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ sessionId, stage: "vision_id" }),
+          });
+          await refreshSession(sessionId);
         } else {
-          if (isSelfPath) {
-            const message = "Documents uploaded with minor issues. You can continue self-certification and review report flags.";
-            setAssistant(message);
-            speakWithLanguage(message);
-          } else {
-            const message = "Document verification could not be completed. Please re-upload clearer documents.";
-            setAssistant(message);
-            speakWithLanguage(message);
-          }
+          const message = "Document verification could not be completed. Please re-upload clearer supporting documents.";
+          setAssistant(message);
+          speakWithLanguage(message);
         }
       } else {
         alert("Failed to verify documents dynamically.");
@@ -198,7 +190,7 @@ export function useVerification(
     } finally {
       setIsVerifyingDocs(false);
     }
-  }, [sessionId, isSelfPath, runCompliance, createTrustReport, setAssistant, speakWithLanguage, setStage, refreshSession, runProgressSteps]);
+  }, [sessionId, setAssistant, speakWithLanguage, setStage, refreshSession, runProgressSteps]);
 
   const handleFileUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);

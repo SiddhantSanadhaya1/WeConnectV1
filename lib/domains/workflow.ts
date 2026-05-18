@@ -8,13 +8,18 @@ import {
 } from "@/lib/domains/contracts";
 
 export function selectCertificationType(sessionId: string, certificationType: CertificationType) {
-  const stage: CertificationStage = certificationType === "digital" ? "digital_verification" : "self_certification";
+  const stage: CertificationStage =
+    certificationType === "digital"
+      ? "digital_verification"
+      : certificationType === "self"
+        ? "self_certification"
+        : "intake";
   const trustLevel = trustLevelFromCertification(certificationType);
   const next = patchDomainState(sessionId, {
     certificationType,
     trustLevel,
     certificationStage: stage,
-    verificationStatus: certificationType === "digital" ? "running" : "passed",
+    verificationStatus: certificationType === "none" ? "pending" : "running",
   });
   pushGovernanceNotification(
     sessionId,

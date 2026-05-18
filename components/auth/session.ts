@@ -14,6 +14,7 @@ export type AuthSession = {
 };
 
 export const AUTH_SESSION_KEY = "weconnect.auth";
+export const SELLER_SESSION_ID_KEY = "weconnect.seller.sessionId";
 
 export function readAuthSession(): AuthSession | null {
   if (typeof window === "undefined") return null;
@@ -38,6 +39,15 @@ export function writeAuthSession(session: AuthSession) {
 export function clearAuthSession() {
   window.localStorage.removeItem(AUTH_SESSION_KEY);
   window.dispatchEvent(new Event("weconnect-auth-change"));
+}
+
+export function readSellerSessionId(): string | null {
+  if (typeof window === "undefined") return null;
+  return window.localStorage.getItem(SELLER_SESSION_ID_KEY);
+}
+
+export function writeSellerSessionId(sessionId: string) {
+  window.localStorage.setItem(SELLER_SESSION_ID_KEY, sessionId);
 }
 
 function subscribeAuthSession(onChange: () => void) {

@@ -1,7 +1,9 @@
-import { useCallback, useState } from "react";
+import { useCallback } from "react";
 import { parseJsonSafe, fetchWithRetry, humanizeMissingField } from "./utils";
 import { DiscoverJson, Match, OwnershipSummary, OwnershipBreakdown, WorkflowState } from "./types";
 import { RegistrationDraft, emptyRegistrationDraft } from "@/lib/registration";
+
+type DiscoveryCandidate = NonNullable<DiscoverJson["candidates"]>[number];
 
 export function useDiscovery(
   sessionId: string | null,
@@ -15,12 +17,12 @@ export function useDiscovery(
   refreshSession: (sid: string) => Promise<void>,
   match: Match | null,
   setMatch: (v: Match | null) => void,
-  fieldConfidence: any,
-  setFieldConfidence: (v: any) => void,
-  fieldEvidence: any,
-  setFieldEvidence: (v: any) => void,
-  discoverCandidates: any[],
-  setDiscoverCandidates: (v: any[]) => void,
+  fieldConfidence: Partial<Record<keyof RegistrationDraft, number>>,
+  setFieldConfidence: (v: Partial<Record<keyof RegistrationDraft, number>>) => void,
+  fieldEvidence: Partial<Record<keyof RegistrationDraft, string>>,
+  setFieldEvidence: (v: Partial<Record<keyof RegistrationDraft, string>>) => void,
+  discoverCandidates: DiscoveryCandidate[],
+  setDiscoverCandidates: (v: DiscoveryCandidate[]) => void,
   selectedCandidateIndex: number,
   setSelectedCandidateIndex: (v: number) => void,
   needsCandidateConfirmation: boolean,
@@ -29,10 +31,10 @@ export function useDiscovery(
   setCountryConfirmed: (v: boolean) => void,
   setCountryRequiresConfirmation: (v: boolean) => void,
   setOwnershipEvidenceConfidence: (v: number) => void,
-  setOwnership: (v: any) => void,
-  setOwnershipBreakdown: (v: any) => void,
+  setOwnership: (v: OwnershipSummary | null) => void,
+  setOwnershipBreakdown: (v: OwnershipBreakdown | null) => void,
   setFounderNames: (v: string[]) => void,
-  setClassificationSummary: (v: any) => void,
+  setClassificationSummary: (v: DiscoverJson["classificationSummary"] | undefined) => void,
 ) {
   const runDiscover = useCallback(async (candidateIndex = selectedCandidateIndex, confirmedSelection = false) => {
     if (!sessionId) return;
@@ -96,7 +98,7 @@ export function useDiscovery(
     );
     if (j.source === "web") {
       const fallbackNote = j.fallbackReason ? ` (${j.fallbackReason})` : "";
-      setBadge(`DISCOVERY SOURCE · AWS Bedrock Claude${fallbackNote}`);
+      setBadge(`GOOGLE PREFILL · ${j.provider ?? "web"}${fallbackNote}`);
       if (j.lowConfidence) {
         setAssistant(`I found multiple possible matches for ${j.match.companyName}. Please choose the best candidate before continuing.`);
         setBadge("DISCOVERY REVIEW · candidate confirmation required");

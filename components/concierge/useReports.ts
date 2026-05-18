@@ -1,7 +1,8 @@
 import { useCallback, useState } from "react";
 import { parseJsonSafe } from "./utils";
+import type { CertDisplay } from "@/components/CertificateCard";
 
-export function useReports(sessionId: string | null, cert: any, setAssistant: (v: string) => void) {
+export function useReports(sessionId: string | null, cert: CertDisplay | null, setAssistant: (v: string) => void) {
   const [downloadingAiReport, setDownloadingAiReport] = useState(false);
   const [downloadingCertificate, setDownloadingCertificate] = useState(false);
 

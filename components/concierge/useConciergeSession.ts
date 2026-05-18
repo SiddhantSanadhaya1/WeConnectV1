@@ -1,24 +1,70 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { RegistrationDraft, emptyRegistrationDraft } from "@/lib/registration";
+import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
+import { RegistrationDraft } from "@/lib/registration";
+import type { ComplianceResult, TrustReport } from "@/lib/domains/contracts";
 import { parseJsonSafe } from "./utils";
 import { Match, AiAssessmentReport, WorkflowState } from "./types";
+import { readSellerSessionId, writeSellerSessionId } from "@/components/auth/session";
+
+const SELLER_SESSION_CACHE_KEY = "weconnect.seller.session.v1";
+
+type PersistedSellerSession = {
+  sessionId: string;
+  registration: RegistrationDraft;
+  paid: boolean;
+  stage: string;
+  updatedAt: string;
+};
+
+function readPersistedSellerSession(sessionId?: string | null): PersistedSellerSession | null {
+  if (typeof window === "undefined") return null;
+  const raw = window.localStorage.getItem(SELLER_SESSION_CACHE_KEY);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as PersistedSellerSession;
+    if (!parsed?.sessionId || !parsed.registration) return null;
+    if (sessionId && parsed.sessionId !== sessionId) return null;
+    return parsed;
+  } catch {
+    window.localStorage.removeItem(SELLER_SESSION_CACHE_KEY);
+    return null;
+  }
+}
+
+function writePersistedSellerSession(
+  sessionId: string,
+  registration: RegistrationDraft,
+  paid: boolean,
+  stage: string,
+) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(
+    SELLER_SESSION_CACHE_KEY,
+    JSON.stringify({
+      sessionId,
+      registration,
+      paid,
+      stage,
+      updatedAt: new Date().toISOString(),
+    } satisfies PersistedSellerSession),
+  );
+}
 
 export function useConciergeSession(
   match: Match | null,
   registration: RegistrationDraft,
-  setRegistration: (v: RegistrationDraft) => void,
+  setRegistration: Dispatch<SetStateAction<RegistrationDraft>>,
   paid: boolean,
   setPaid: (v: boolean) => void,
   stage: string,
   setStage: (v: string) => void,
   setAssistant: (v: string) => void,
   visionChecks: { idPassed?: boolean },
-  setVisionChecks: (v: any) => void,
+  setVisionChecks: Dispatch<SetStateAction<{ idPassed?: boolean }>>,
   setAiAssessmentReport: (v: AiAssessmentReport | null) => void,
   setWorkflow: (v: WorkflowState | null) => void,
-  setCompliance: (v: any) => void,
-  setTrustReport: (v: any) => void,
-  setQuestionnaireAnswers: (v: any) => void,
+  setCompliance: (v: ComplianceResult | null) => void,
+  setTrustReport: (v: TrustReport | null) => void,
+  setQuestionnaireAnswers: Dispatch<SetStateAction<Record<string, string>>>,
 ) {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [pollingEnabled, setPollingEnabled] = useState(true);
@@ -87,6 +133,25 @@ export function useConciergeSession(
       if (JSON.stringify(serverRegistrationWithCert) !== JSON.stringify(registration)) {
         setRegistration(serverRegistrationWithCert);
       }
+      writePersistedSellerSession(sid, serverRegistrationWithCert, Boolean(j.paid), j.stage ?? stage);
+    } else {
+      const persisted = readPersistedSellerSession(sid);
+      if (persisted?.registration.business_name.trim()) {
+        setRegistration(persisted.registration);
+        setPaid(persisted.paid);
+        if (persisted.stage && persisted.stage !== stage) setStage(persisted.stage);
+        await fetch("/api/session/registration", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sessionId: sid,
+            registration: persisted.registration,
+            paid: persisted.paid,
+          }),
+        });
+        setAssistant("Restored your saved demo registration from this browser.");
+        return;
+      }
     }
     const nextPaid = Boolean(j.paid);
     if (nextPaid !== paid) setPaid(nextPaid);
@@ -102,9 +167,25 @@ export function useConciergeSession(
       setWorkflow(j.workflow);
       setCompliance(j.workflow.compliance ?? null);
       setTrustReport(j.workflow.trustReport ?? null);
-      setQuestionnaireAnswers((prev: any) => ({ ...prev, ...(j.workflow?.questionnaireAnswers ?? {}) }));
+      setQuestionnaireAnswers((prev) => ({ ...prev, ...(j.workflow?.questionnaireAnswers ?? {}) }));
     }
-  }, [stage, registration, paid, visionChecks.idPassed, match]);
+  }, [
+    stage,
+    registration,
+    paid,
+    visionChecks.idPassed,
+    match,
+    setAiAssessmentReport,
+    setAssistant,
+    setCompliance,
+    setPaid,
+    setQuestionnaireAnswers,
+    setRegistration,
+    setStage,
+    setTrustReport,
+    setVisionChecks,
+    setWorkflow,
+  ]);
 
   const saveRegistration = useCallback(async (nextRegistration: RegistrationDraft, nextPaid: boolean) => {
     if (!sessionId) return;
@@ -127,18 +208,42 @@ export function useConciergeSession(
         company,
       }),
     });
-  }, [sessionId, match]);
+    writePersistedSellerSession(sessionId, nextRegistration, nextPaid, stage);
+  }, [sessionId, match, stage]);
 
   useEffect(() => {
     void (async () => {
-      const r = await fetch("/api/session", { method: "POST" });
+      const persisted = readPersistedSellerSession();
+      const preferredSessionId = readSellerSessionId() ?? persisted?.sessionId;
+      if (persisted?.registration.business_name.trim()) {
+        setRegistration(persisted.registration);
+        setPaid(persisted.paid);
+        if (persisted.stage) setStage(persisted.stage);
+      }
+      const r = await fetch("/api/session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: preferredSessionId ? JSON.stringify({ sessionId: preferredSessionId }) : undefined,
+      });
       const parsed = await parseJsonSafe<{ sessionId: string }>(r);
       if (parsed.ok && parsed.data?.sessionId) {
         setPollingEnabled(true);
         setSessionId(parsed.data.sessionId);
+        writeSellerSessionId(parsed.data.sessionId);
+        if (persisted?.registration.business_name.trim()) {
+          await fetch("/api/session/registration", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              sessionId: parsed.data.sessionId,
+              registration: persisted.registration,
+              paid: persisted.paid,
+            }),
+          });
+        }
       }
     })();
-  }, []);
+  }, [setPaid, setRegistration, setStage]);
 
   useEffect(() => {
     if (!sessionId || !pollingEnabled) return;
